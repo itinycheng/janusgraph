@@ -71,8 +71,13 @@ public abstract class AbstractElement implements InternalElement, Comparable<Jan
             return ((JanusGraphElement) other).hasId() && Objects.equals(getCompareId(), ((JanusGraphElement)other).id());
         } else {
             Object otherId = ((Element)other).id();
-            if (otherId instanceof RelationIdentifier) return Objects.equals(((RelationIdentifier) otherId).getRelationId(), getCompareId());
-            else return otherId.equals(getCompareId());
+            if (otherId instanceof RelationIdentifier) {
+                return Objects.equals(((RelationIdentifier) otherId).getRelationId(), getCompareId());
+            } else if (otherId instanceof Long) {
+                return ((long) otherId) == (long) getCompareId();
+            } else {
+                return false;
+            }
         }
     }
 

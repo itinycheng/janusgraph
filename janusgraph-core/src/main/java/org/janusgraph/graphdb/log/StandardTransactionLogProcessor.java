@@ -295,7 +295,13 @@ public class StandardTransactionLogProcessor implements TransactionRecovery {
             if (this==other) return true;
             else if (other==null || !getClass().isInstance(other)) return false;
             IndexRestore r = (IndexRestore)other;
-            return r.elementId.equals(elementId) && indexId==r.indexId;
+            boolean isElementIdEquals;
+            if (r.elementId instanceof Long && elementId instanceof Long) {
+                isElementIdEquals = (long) r.elementId == (long) elementId;
+            } else {
+                isElementIdEquals = r.elementId.equals(elementId);
+            }
+            return isElementIdEquals && indexId == r.indexId;
         }
 
     }
