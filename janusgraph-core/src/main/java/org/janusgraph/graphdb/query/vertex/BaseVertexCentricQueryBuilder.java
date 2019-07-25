@@ -34,6 +34,7 @@ import org.janusgraph.graphdb.query.Query;
 import org.janusgraph.graphdb.query.condition.PredicateCondition;
 import org.janusgraph.graphdb.relations.RelationIdentifier;
 import org.janusgraph.graphdb.tinkerpop.ElementUtils;
+import org.janusgraph.graphdb.types.system.BaseLabel;
 import org.janusgraph.graphdb.types.system.ImplicitKey;
 import org.janusgraph.graphdb.types.system.SystemRelationType;
 
@@ -221,6 +222,10 @@ public abstract class BaseVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q>
      * Inspection Methods
 	 * ---------------------------------------------------------------
 	 */
+
+    protected final boolean isVertexLabelType() {
+        return types.length == 1 && schemaInspector.getRelationType(types[0]) == BaseLabel.VertexLabelEdge && dir == Direction.OUT;
+    }
 
     protected final boolean hasTypes() {
         return types.length > 0;
