@@ -400,12 +400,13 @@ public class LuceneIndex implements IndexProvider {
 
     private Document retrieveOrCreate(String docID, IndexSearcher searcher) throws IOException {
         final Document doc;
-        final TopDocs hits = searcher.search(new TermQuery(new Term(DOCID, docID)), 10);
+        final SingleDocumentCollector collector = new SingleDocumentCollector();
+        searcher.search(new TermQuery(new Term(DOCID, docID)), collector);
 
-        if (hits.scoreDocs.length > 1)
+        if (collector.numDocs > 1)
             throw new IllegalArgumentException("More than one document found for document id: " + docID);
 
-        if (hits.scoreDocs.length == 0) {
+        if (collector.numDocs == 0) {
             if (log.isTraceEnabled())
                 log.trace("Creating new document for [{}]", docID);
 
@@ -415,7 +416,7 @@ public class LuceneIndex implements IndexProvider {
             if (log.isTraceEnabled())
                 log.trace("Updating existing document for [{}]", docID);
 
-            final int docId = hits.scoreDocs[0].doc;
+            final int docId = collector.docId;
             doc = searcher.doc(docId);
         }
 
@@ -629,19 +630,16 @@ public class LuceneIndex implements IndexProvider {
                 q = new MatchAllDocsQuery();
 
             final long time = System.currentTimeMillis();
-            final TopDocs docs;
             int limit = query.hasLimit() ? query.getLimit() : Integer.MAX_VALUE - 1;
-            if (query.getOrder().isEmpty()) {
-                docs = searcher.search(q, limit);
-            } else {
-                docs = searcher.search(q, limit, getSortOrder(query.getOrder(), information.get(store)));
+
+            Sort sort = null;
+            if (!query.getOrder().isEmpty()) {
+                sort = getSortOrder(query.getOrder(), information.get(store));
             }
+
+            final List<String> result = new ArrayList<>();
+            search(searcher, q, sort, 0, limit, (elementId, score) -> result.add(elementId));
             log.debug("Executed query [{}] in {} ms", q, System.currentTimeMillis() - time);
-            final List<String> result = new ArrayList<>(docs.scoreDocs.length);
-            for (int i = 0; i < docs.scoreDocs.length; i++) {
-                final IndexableField field = searcher.doc(docs.scoreDocs[i].doc, FIELDS_TO_LOAD).getField(DOCID);
-                result.add(field == null ? null : field.stringValue());
-            }
             return result.stream();
         } catch (final IOException e) {
             throw new TemporaryBackendException("Could not execute Lucene query", e);
@@ -938,21 +936,38 @@ public class LuceneIndex implements IndexProvider {
             int adjustedLimit = query.hasLimit() ? query.getLimit() : Integer.MAX_VALUE - 1;
             if (adjustedLimit < Integer.MAX_VALUE - 1 - offset) adjustedLimit += offset;
             else adjustedLimit = Integer.MAX_VALUE - 1;
-            final TopDocs docs;
-            if (query.getOrders().isEmpty()) {
-                docs = searcher.search(q, adjustedLimit);
-            } else {
-                docs = searcher.search(q, adjustedLimit, getSortOrder(query.getOrders(), information.get(query.getStore())));
+
+            Sort sort = null;
+            if (!query.getOrders().isEmpty()) {
+                sort = getSortOrder(query.getOrders(), information.get(query.getStore()));
             }
+            final List<RawQuery.Result<String>> result = new ArrayList<>();
+            search(searcher, q, sort, offset, adjustedLimit, ((elementId, score) -> result.add(new RawQuery.Result<>(elementId, score))));
             log.debug("Executed query [{}] in {} ms", q, System.currentTimeMillis() - time);
-            final List<RawQuery.Result<String>> result = new ArrayList<>(docs.scoreDocs.length);
-            for (int i = offset; i < docs.scoreDocs.length; i++) {
-                final IndexableField field = searcher.doc(docs.scoreDocs[i].doc, FIELDS_TO_LOAD).getField(DOCID);
-                result.add(new RawQuery.Result<>(field == null ? null : field.stringValue(), docs.scoreDocs[i].score));
-            }
             return result.stream();
         } catch (final IOException e) {
             throw new TemporaryBackendException("Could not execute Lucene query", e);
+        }
+    }
+
+    private interface SearchCallback {
+        void document(String elementId, double score);
+    }
+
+    private void search(IndexSearcher searcher, Query query, Sort sort, int offset, int limit, SearchCallback callback) throws IOException {
+        if (sort == null) {
+            SimpleDocumentCollector collector = new SimpleDocumentCollector(limit, true);
+            searcher.search(query, collector);
+            for (int i = offset; i < collector.docs.size(); i++) {
+                final IndexableField field = searcher.doc(collector.docs.get(i), FIELDS_TO_LOAD).getField(DOCID);
+                callback.document(field == null ? null : field.stringValue(), collector.scores.get(i));
+            }
+        } else {
+            TopFieldDocs docs = searcher.search(query, limit, sort);
+            for (int i = offset; i < docs.scoreDocs.length; i++) {
+                final IndexableField field = searcher.doc(docs.scoreDocs[i].doc, FIELDS_TO_LOAD).getField(DOCID);
+                callback.document(field == null ? null : field.stringValue(), docs.scoreDocs[i].score);
+            }
         }
     }
 
@@ -1055,9 +1070,10 @@ public class LuceneIndex implements IndexProvider {
             // Lucene doesn't like limits of 0.  Also, it doesn't efficiently build a total list.
             query.setLimit(1);
             // We ignore offset and limit for totals
-            final TopDocs docs = searcher.search(q, 1);
+            SingleDocumentCollector collector = new SingleDocumentCollector();
+            searcher.search(q, collector);
             log.debug("Executed query [{}] in {} ms", q, System.currentTimeMillis() - time);
-            return docs.totalHits.value;
+            return collector.numDocs;
         } catch (final IOException e) {
             throw new TemporaryBackendException("Could not execute Lucene query", e);
         }
