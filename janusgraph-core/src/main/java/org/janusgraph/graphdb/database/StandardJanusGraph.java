@@ -378,7 +378,7 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
             Runtime.getRuntime().removeShutdownHook(tmp);
             log.debug("Removed shutdown hook {}", tmp);
         } catch (IllegalStateException e) {
-            log.warn("Failed to remove shutdown hook", e);
+            // ignore - VM is already shutting down
         }
     }
 
