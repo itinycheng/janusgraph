@@ -17,6 +17,7 @@ package org.janusgraph.graphdb.database;
 import org.apache.tinkerpop.gremlin.structure.Property;
 import org.apache.tinkerpop.gremlin.structure.util.detached.DetachedProperty;
 import org.janusgraph.core.JanusGraphElement;
+import org.janusgraph.core.JanusGraphProperty;
 import org.janusgraph.core.PropertyKey;
 import org.janusgraph.core.schema.Parameter;
 import org.janusgraph.core.schema.SchemaStatus;
@@ -42,9 +43,11 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.withSettings;
 
 public class IndexSerializerTest {
 
@@ -81,7 +84,7 @@ public class IndexSerializerTest {
     public void testReindexElementAppliesToNoEntries() {
         Map<String, Map<String, List<IndexEntry>>> docStore = new HashMap<>();
         IndexSerializer mockSerializer = mockSerializer();
-        MixedIndexType mit = mock(MixedIndexType.class);
+        MixedIndexType mit = mock(MixedIndexType.class, withSettings().verboseLogging());
         JanusGraphElement indexableElement = mockIndexAppliesTo(mit, false);
 
         assertFalse("re-index", mockSerializer.reindexElement(indexableElement, mit, docStore));
@@ -119,6 +122,7 @@ public class IndexSerializerTest {
         ParameterIndexField[] ifField = { pif };
 
         doReturn(ifField).when(mit).getFieldKeys();
+        doReturn(pif).when(mit).getField(any());
 
         return indexableElement;
 

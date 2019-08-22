@@ -316,7 +316,36 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
                     config.getVertexCacheSize(), effectiveVertexCacheSize, MIN_VERTEX_CACHE_SIZE);
         }
 
-        vertexCache = new CaffeineVertexCache(effectiveVertexCacheSize,config.getDirtyVertexSize());
+        // Special case for reindex job -- disable cache
+        if (config.hasPreloadedData() && config.getVertexCacheSize() == 0 && config.getDirtyVertexSize() == 0) {
+            vertexCache = new VertexCache() {
+                @Override
+                public boolean contains(final long id) {
+                    return false;
+                }
+
+                @Override
+                public InternalVertex get(final long id, final Retriever<Long, InternalVertex> retriever) {
+                    return retriever.get(id);
+                }
+
+                @Override
+                public void add(final InternalVertex vertex, final long id) {
+                }
+
+                @Override
+                public List<InternalVertex> getAllNew() {
+                    return null;
+                }
+
+                @Override
+                public void close() {
+
+                }
+            };
+        } else {
+            vertexCache = new CaffeineVertexCache(effectiveVertexCacheSize,  config.getDirtyVertexSize());
+        }
 
         indexCache = new CaffeineSubqueryCache(config.getIndexCacheWeight());
 
