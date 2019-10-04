@@ -250,7 +250,7 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
 
         shutdownHook = new ShutdownThread(this);
         Runtime.getRuntime().addShutdownHook(shutdownHook);
-        log.debug("Installed shutdown hook {}", shutdownHook, new Throwable("Hook creation trace"));
+        log.trace("Installed shutdown hook {}", shutdownHook, new Throwable("Hook creation trace"));
     }
 
     public String getGraphName() {

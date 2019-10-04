@@ -22,12 +22,14 @@ import org.janusgraph.core.schema.JanusGraphManagement;
 import org.janusgraph.core.schema.SchemaStatus;
 import org.janusgraph.diskstorage.util.time.Timer;
 import org.janusgraph.diskstorage.util.time.TimestampProviders;
+import org.janusgraph.graphdb.database.StandardJanusGraph;
 import org.janusgraph.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class GraphIndexStatusWatcher
         extends AbstractIndexStatusWatcher<GraphIndexStatusReport, GraphIndexStatusWatcher> {
@@ -60,6 +62,7 @@ public class GraphIndexStatusWatcher
         Timer t = new Timer(TimestampProviders.MILLI).start();
         boolean timedOut;
         while (true) {
+            Set<String> openInstances;
             JanusGraphManagement management = null;
             try {
                 management = g.openManagement();
@@ -72,6 +75,7 @@ public class GraphIndexStatusWatcher
                     else
                         converged.put(pk.toString(), s);
                 }
+                openInstances = management.getOpenInstances();
             } finally {
                 if (null != management)
                     management.rollback(); // Let an exception here propagate up the stack
@@ -88,8 +92,8 @@ public class GraphIndexStatusWatcher
             timedOut = null != timeout && 0 < t.elapsed().compareTo(timeout);
 
             if (timedOut) {
-                LOGGER.info("Timed out ({}) while waiting for index {} to converge on status(es) {}",
-                        timeout, graphIndexName, statuses);
+                LOGGER.warn("Timed out ({}) while waiting for index {} to converge on status(es) {}. Possible some of instances are dead {}, {} txs",
+                        timeout, graphIndexName, statuses, openInstances, ((StandardJanusGraph) g).getOpenTransactions());
                 return new GraphIndexStatusReport(false, graphIndexName, statuses, notConverged, converged, t.elapsed());
             }
             notConverged.clear();
