@@ -110,6 +110,7 @@ public class BerkeleyJEStoreManager extends LocalStoreManager implements Ordered
                     .keyOrdered(true)
                     .scanTxConfig(GraphDatabaseConfiguration.buildGraphConfiguration()
                             .set(ISOLATION_LEVEL, IsolationLevel.READ_UNCOMMITTED.toString())
+                            .set(CACHE_MODE, CacheMode.UNCHANGED.toString())
                     )
                     .supportsInterruption(false)
                     .cellTTL(true)
