@@ -121,11 +121,15 @@ import org.janusgraph.graphdb.log.StandardTransactionLogProcessor;
 import org.janusgraph.graphdb.olap.job.GhostVertexRemover;
 import org.janusgraph.graphdb.olap.job.IndexRemoveJob;
 import org.janusgraph.graphdb.olap.job.IndexRepairJob;
+import org.janusgraph.graphdb.query.BackendQueryHolder;
+import org.janusgraph.graphdb.query.QueryExecutor;
+import org.janusgraph.graphdb.query.graph.GraphCentricQuery;
 import org.janusgraph.graphdb.query.JanusGraphPredicateUtils;
 import org.janusgraph.graphdb.query.QueryUtil;
 import org.janusgraph.graphdb.query.condition.MultiCondition;
 import org.janusgraph.graphdb.query.condition.PredicateCondition;
 import org.janusgraph.graphdb.query.graph.GraphCentricQueryBuilder;
+import org.janusgraph.graphdb.query.graph.JointIndexQuery;
 import org.janusgraph.graphdb.query.index.IndexSelectionUtil;
 import org.janusgraph.graphdb.query.profile.QueryProfiler;
 import org.janusgraph.graphdb.query.profile.SimpleQueryProfiler;
@@ -5942,6 +5946,55 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertCount(multiplier, graph.query().has("sid", 11).has("color", colors[3]).vertices());
     }
 
+    @Test
+    public void testRetrievalNotCommittedNodes() {
+        //This test demonstrates issue #1970
+        makeVertexIndexedKey("key1", String.class);
+        makeVertexIndexedKey("key2", String.class);
+        finishSchema();
+
+        String value1 = "SameKeyValue";
+        String value2 = "KeyValue";
+        String value3 = "PropertyValue";
+        try (JanusGraphTransaction tx = graph.buildTransaction().start()) {
+            final GraphTraversalSource traversal = tx.traversal();
+            for (int i = 0; i < 1000; i++) {
+                traversal.addV()
+                         .property("key1", value1)
+                         .property("key2", value2 + i)
+                         .property("simpleProperty", value3)
+                         .iterate();
+            }
+            QueryExecutor<GraphCentricQuery, JanusGraphElement, JointIndexQuery> processor = ((StandardJanusGraphTx) tx).elementProcessorImpl;
+            JanusGraphQuery<? extends JanusGraphQuery> query = graph.query().has("key2", "KeyValue1").has("key1", "SameKeyValue");
+            int size1 = getUnfilteredNewNodesSize(query, (StandardJanusGraphTx) tx);
+            query = graph.query().has("key1", "SameKeyValue").has("key2", "KeyValue1");
+            int size2 = getUnfilteredNewNodesSize(query, (StandardJanusGraphTx) tx);
+            assertEquals(size1, size2);
+            tx.commit();
+        }
+    }
+
+    private int getUnfilteredNewNodesSize(JanusGraphQuery<? extends JanusGraphQuery> query, StandardJanusGraphTx tx) {
+        QueryExecutor<GraphCentricQuery, JanusGraphElement, JointIndexQuery> processor = tx.elementProcessorImpl;
+        final GraphCentricQuery delegate = ((GraphCentricQueryBuilder) query).constructQuery(ElementCategory.VERTEX);
+        GraphCentricQuery graphCentricQuery = new GraphCentricQuery(delegate.getResultType(),
+            delegate.getCondition(),
+            delegate.getOrder(),
+            new BackendQueryHolder<>(new JointIndexQuery(), true, false),
+            0) {
+            @Override
+            public BackendQueryHolder<JointIndexQuery> getSubQuery(int position) {
+                return delegate.getSubQuery(position);
+            }
+
+            @Override
+            public boolean matches(JanusGraphElement element) {
+                return true;
+            }
+        };
+        return Iterators.size(processor.getNew(graphCentricQuery));
+    }
 
     @Test
     public void testIndexQueryWithLabelsAndContainsIN() {
