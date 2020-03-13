@@ -207,6 +207,8 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
      */
     private VertexCache vertexCache;
 
+    private Map<Long, InternalVertex> schemaVertexCache;
+
     //######## Data structures that keep track of new and deleted elements
     //These data structures cannot release elements, since we would loose track of what was added or deleted
     /**
@@ -347,6 +349,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         } else {
             vertexCache = new CaffeineVertexCache(effectiveVertexCacheSize,  config.getDirtyVertexSize());
         }
+        schemaVertexCache = new ConcurrentHashMap<>();
 
         indexCache = new CaffeineSubqueryCache(config.getIndexCacheWeight());
 
@@ -488,7 +491,12 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         //Make canonical partitioned vertex id
         if (idInspector.isPartitionedVertex(vertexId)) vertexId=idManager.getCanonicalVertexId(((Number) vertexId).longValue());
 
-        final InternalVertex v = vertexCache.get(vertexId, externalVertexRetriever);
+        InternalVertex v;
+        if (idInspector.isSchemaVertexId(vertexId)) {
+            v = schemaVertexCache.computeIfAbsent(vertexId, existingVertexRetriever::get);
+        } else {
+            v = vertexCache.get(vertexId, externalVertexRetriever);
+        }
         return (null == v || v.isRemoved()) ? null : v;
     }
 
@@ -799,7 +807,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
 
         Collection<Connection> connections = outVertexLabel.mappedConnections();
         for (Connection connection : connections) {
-            if (connection.getIncomingVertexLabel() != inVertexLabel) continue;
+            if (!connection.getIncomingVertexLabel().equals(inVertexLabel)) continue;
             if (connection.getEdgeLabel().equals(edgeLabel.name())) return;
         }
         config.getAutoSchemaMaker().makeConnectionConstraint(edgeLabel, outVertexLabel, inVertexLabel, this);
@@ -1006,7 +1014,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
             JanusGraphVertexProperty p = addProperty(schemaVertex, BaseKey.SchemaDefinitionProperty, def.getValue());
             p.property(BaseKey.SchemaDefinitionDesc.name(), TypeDefinitionDescription.of(def.getKey()));
         }
-        vertexCache.add(schemaVertex, schemaVertex.longId());
+        schemaVertexCache.put(schemaVertex.longId(), schemaVertex);
         if (schemaCategory.hasName()) newTypeCache.put(schemaCategory.getSchemaName(name), schemaVertex.longId());
         return schemaVertex;
 
@@ -1063,7 +1071,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         Long schemaId = newTypeCache.get(schemaName);
         if (schemaId==null) schemaId=graph.getSchemaCache().getSchemaId(schemaName);
         if (schemaId != null) {
-            InternalVertex typeVertex = vertexCache.get(schemaId, existingVertexRetriever);
+            InternalVertex typeVertex = schemaVertexCache.computeIfAbsent(schemaId, existingVertexRetriever::get);
             assert typeVertex!=null;
             return (JanusGraphSchemaVertex)typeVertex;
         } else return null;
@@ -1103,7 +1111,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         if (IDManager.isSystemRelationTypeId(typeId)) {
             return SystemTypeManager.getSystemType(typeId);
         } else {
-            InternalVertex v = getInternalVertex(typeId);
+            InternalVertex v = schemaVertexCache.computeIfAbsent(typeId, internalVertexRetriever::get);
             return (RelationType) v;
         }
     }
@@ -1628,6 +1636,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         uniqueLocks = Collections.emptyMap();
         newVertexIndexEntries = EmptyIndexCache.getInstance();
         newTypeCache = Collections.emptyMap();
+        schemaVertexCache = null;
     }
 
     @Override
