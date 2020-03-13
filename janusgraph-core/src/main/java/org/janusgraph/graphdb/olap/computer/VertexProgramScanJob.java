@@ -14,6 +14,7 @@
 
 package org.janusgraph.graphdb.olap.computer;
 
+import com.google.common.collect.Sets;
 import org.apache.tinkerpop.gremlin.process.computer.MessageScope;
 import org.apache.tinkerpop.gremlin.process.computer.VertexProgram;
 import org.apache.tinkerpop.gremlin.process.computer.clustering.connected.ConnectedComponentVertexProgram;
@@ -42,19 +43,24 @@ import java.io.Closeable;
 import java.util.List;
 import java.util.Set;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.COMPUTER_PRELOAD_PROPERTIES;
+
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
  */
 public class VertexProgramScanJob<M> implements VertexScanJob {
 
     private static final MessageScope.Global globalScope = MessageScope.Global.instance();
+    private final Configuration configuration;
     private final IDManager idManager;
     private final FulgoraMemory memory;
     private final FulgoraVertexMemory<M> vertexMemory;
     private final VertexProgram<M> vertexProgram;
 
-    private VertexProgramScanJob(IDManager idManager, FulgoraMemory memory,
-                                FulgoraVertexMemory vertexMemory, VertexProgram<M> vertexProgram) {
+    private VertexProgramScanJob(Configuration configuration, IDManager idManager,
+                                 FulgoraMemory memory,
+                                 FulgoraVertexMemory vertexMemory, VertexProgram<M> vertexProgram) {
+        this.configuration = configuration;
         this.idManager = idManager;
         this.memory = memory;
         this.vertexMemory = vertexMemory;
@@ -63,7 +69,7 @@ public class VertexProgramScanJob<M> implements VertexScanJob {
 
     @Override
     public VertexProgramScanJob<M> clone() {
-        return new VertexProgramScanJob<>(this.idManager, this.memory, this.vertexMemory, this.vertexProgram
+        return new VertexProgramScanJob<>(configuration, this.idManager, this.memory, this.vertexMemory, this.vertexProgram
                 .clone());
     }
 
@@ -111,7 +117,9 @@ public class VertexProgramScanJob<M> implements VertexScanJob {
 
     @Override
     public void getQueries(QueryContainer queries) {
-        Set<MessageScope> previousScopes = vertexMemory.getPreviousScopes();
+        Set<MessageScope> previousScopes = Sets.newHashSet(vertexMemory.getPreviousScopes());
+        previousScopes.addAll(vertexProgram.getMessageScopes(memory));
+
         if (vertexProgram instanceof TraversalVertexProgram || vertexProgram instanceof ShortestPathVertexProgram ||
             vertexProgram instanceof ConnectedComponentVertexProgram || previousScopes.contains(globalScope)) {
             //TraversalVertexProgram currently makes the assumption that the entire star-graph around a vertex
@@ -133,10 +141,10 @@ public class VertexProgramScanJob<M> implements VertexScanJob {
         }
     }
 
-    public static<M> Executor getVertexProgramScanJob(StandardJanusGraph graph, FulgoraMemory memory,
+    public static<M> Executor getVertexProgramScanJob(Configuration configuration, StandardJanusGraph graph, FulgoraMemory memory,
                                                   FulgoraVertexMemory vertexMemory, VertexProgram<M> vertexProgram) {
-        final VertexProgramScanJob<M> job = new VertexProgramScanJob<>(graph.getIDManager(), memory, vertexMemory, vertexProgram);
-        return new Executor(graph,job);
+        final VertexProgramScanJob<M> job = new VertexProgramScanJob<>(configuration, graph.getIDManager(), memory, vertexMemory, vertexProgram);
+        return new Executor(graph, job);
     }
 
     //Query for all system properties+edges and normal properties
@@ -159,7 +167,9 @@ public class VertexProgramScanJob<M> implements VertexScanJob {
         @Override
         public List<SliceQuery> getQueries() {
             List<SliceQuery> queries = super.getQueries();
-            queries.add(SYSTEM_PROPS_QUERY);
+            if (((VertexProgramScanJob) job).configuration.get(COMPUTER_PRELOAD_PROPERTIES)) {
+                queries.add(SYSTEM_PROPS_QUERY);
+            }
             return queries;
         }
 

@@ -14,9 +14,27 @@
 
 package org.janusgraph.graphdb.olap.computer;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.ROOT_NS;
+
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
+import org.janusgraph.core.JanusGraphException;
+import org.janusgraph.core.JanusGraphComputer;
+import org.janusgraph.core.JanusGraphTransaction;
+import org.janusgraph.core.schema.JanusGraphManagement;
+import org.janusgraph.diskstorage.BackendException;
+import org.janusgraph.diskstorage.configuration.ConfigElement;
+import org.janusgraph.diskstorage.configuration.ConfigOption;
+import org.janusgraph.diskstorage.configuration.Configuration;
+import org.janusgraph.diskstorage.configuration.MergedConfiguration;
+import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
+import org.janusgraph.diskstorage.keycolumnvalue.scan.ScanMetrics;
+import org.janusgraph.diskstorage.keycolumnvalue.scan.StandardScanner;
+import org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration;
+import org.janusgraph.graphdb.database.StandardJanusGraph;
+import org.janusgraph.graphdb.util.WorkerPool;
+
 import org.apache.tinkerpop.gremlin.process.computer.ComputerResult;
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer;
 import org.apache.tinkerpop.gremlin.process.computer.GraphFilter;
@@ -77,6 +95,7 @@ public class FulgoraGraphComputer implements JanusGraphComputer {
     private VertexProgram<?> vertexProgram;
     private final Set<MapReduce> mapReduces = new HashSet<>();
 
+    private final ModifiableConfiguration computerConfiguration = GraphDatabaseConfiguration.buildGraphConfiguration();
     private final StandardJanusGraph graph;
     private final int expectedNumVertices = 10000;
     private FulgoraMemory memory;
@@ -159,6 +178,12 @@ public class FulgoraGraphComputer implements JanusGraphComputer {
         return CompletableFuture.supplyAsync(this::submitAsync);
     }
 
+    @Override
+    public GraphComputer configure(final String key, final Object value) {
+        computerConfiguration.set((ConfigOption<Object>) ConfigElement.parse(ROOT_NS, key).element, value);
+        return this;
+    }
+
     private void guardAgainstDuplicateSubmission() {
         if (executed)
             throw Exceptions.computerHasAlreadyBeenSubmittedAVertexProgram();
@@ -197,6 +222,7 @@ public class FulgoraGraphComputer implements JanusGraphComputer {
 
         Map<MapReduce, FulgoraMapEmitter> mapJobs = collectMapJobs();
         executeMapJobs(mapJobs);
+        memory.attachReferenceElements(graph);
 
         Graph resultgraph = writeMutatedPropertiesBackIntoGraph();
         // update runtime and return the newly computed graph
@@ -211,7 +237,20 @@ public class FulgoraGraphComputer implements JanusGraphComputer {
         vertexMemory = new FulgoraVertexMemory(expectedNumVertices, graph.getIDManager(), vertexProgram);
         vertexProgram.setup(memory);
 
-        try (VertexProgramScanJob.Executor job = VertexProgramScanJob.getVertexProgramScanJob(graph, memory, vertexMemory, vertexProgram)) {
+        JanusGraphManagement mgmt = graph.openManagement();
+        try {
+            for (VertexComputeKey vertexComputeKey : vertexProgram.getVertexComputeKeys()) {
+                mgmt.getOrCreatePropertyKey(vertexComputeKey.getKey(), Object.class);
+            }
+            mgmt.commit();
+        } finally {
+            if (mgmt.isOpen()) {
+                mgmt.rollback();
+            }
+        }
+
+        Configuration effectiveConfiguration = getGraphComputerConfiguration();
+        try (VertexProgramScanJob.Executor job = VertexProgramScanJob.getVertexProgramScanJob(effectiveConfiguration, graph, memory, vertexMemory, vertexProgram)) {
             for (int iteration = 1; ; iteration++) {
                 memory.completeSubRound();
                 executeIterationOfJob(job, iteration);
@@ -225,6 +264,10 @@ public class FulgoraGraphComputer implements JanusGraphComputer {
                 }
             }
         }
+    }
+
+    private Configuration getGraphComputerConfiguration() {
+        return new MergedConfiguration(computerConfiguration, graph.getConfiguration().getConfiguration());
     }
 
     private void executeIterationOfJob(VertexProgramScanJob.Executor job, int iteration) {
@@ -257,6 +300,7 @@ public class FulgoraGraphComputer implements JanusGraphComputer {
     private StandardScanner.Builder createScanBuilderForJob(VertexProgramScanJob.Executor job, int iteration) {
         jobId = name + "#" + iteration;
         StandardScanner.Builder scanBuilder = graph.getBackend().buildEdgeScanJob();
+        scanBuilder.setGraphConfiguration(getGraphComputerConfiguration());
         scanBuilder.setJobId(jobId);
         scanBuilder.setNumProcessingThreads(numThreads);
         scanBuilder.setWorkBlockSize(readBatchSize);
@@ -295,16 +339,19 @@ public class FulgoraGraphComputer implements JanusGraphComputer {
     }
 
     private void executeMapJobs(Map<MapReduce, FulgoraMapEmitter> mapJobs) {
+        if (mapJobs.isEmpty()) {
+            return;
+        }
         jobId = name + "#map";
         try (VertexMapJob.Executor job = VertexMapJob.getVertexMapJob(graph, vertexMemory, mapJobs)) {
             executeMapJob(job);
             executeReducePhase(mapJobs);
         }
-        memory.attachReferenceElements(graph);
     }
 
     private void executeMapJob(VertexMapJob.Executor job) {
         StandardScanner.Builder scanBuilder = graph.getBackend().buildEdgeScanJob();
+        scanBuilder.setGraphConfiguration(getGraphComputerConfiguration());
         scanBuilder.setJobId(jobId);
         scanBuilder.setNumProcessingThreads(numThreads);
         scanBuilder.setWorkBlockSize(readBatchSize);

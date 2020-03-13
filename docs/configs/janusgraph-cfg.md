@@ -39,6 +39,7 @@ GraphComputer related configuration
 
 | Name | Description | Datatype | Default Value | Mutability |
 | ---- | ---- | ---- | ---- | ---- |
+| computer.preload-properties | What the graph computer will load by default all properties or nothing  | Boolean | true | MASKABLE |
 | computer.result-mode | How the graph computer should return the computed results. 'persist' for writing them into the graph, 'localtx' for writing them into the local transaction, or 'none' (default) | String | none | MASKABLE |
 
 ### graph

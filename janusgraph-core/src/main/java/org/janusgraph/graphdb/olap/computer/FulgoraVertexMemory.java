@@ -21,6 +21,9 @@ import org.apache.tinkerpop.gremlin.process.computer.MessageCombiner;
 import org.apache.tinkerpop.gremlin.process.computer.MessageScope;
 import org.apache.tinkerpop.gremlin.process.computer.VertexComputeKey;
 import org.apache.tinkerpop.gremlin.process.computer.VertexProgram;
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.janusgraph.diskstorage.EntryList;
 import org.janusgraph.graphdb.idmanagement.IDManager;
 import org.jctools.maps.NonBlockingHashMap;
@@ -39,6 +42,9 @@ import java.util.stream.Stream;
  */
 public class FulgoraVertexMemory<M> {
 
+    private static final Logger log =
+        LoggerFactory.getLogger(FulgoraGraphComputer.class);
+
     private static final MessageScope.Global GLOBAL_SCOPE = MessageScope.Global.instance();
 
 
@@ -51,6 +57,7 @@ public class FulgoraVertexMemory<M> {
     private Map<MessageScope,Integer> previousScopes;
     private Map<MessageScope,Integer> currentScopes;
     private boolean inExecute;
+    private int messageCount = 0;
 
     private final NonBlockingHashMapLong<PartitionVertexAggregate<M>> partitionVertices;
 
@@ -94,6 +101,7 @@ public class FulgoraVertexMemory<M> {
     }
 
     void sendMessage(Object vertexId, M message, MessageScope scope) {
+        messageCount++;
         VertexState<M> state = get(vertexId,true);
         if (scope instanceof MessageScope.Global) state.addMessage(message,GLOBAL_SCOPE,currentScopes,combiner);
         else state.setMessage(message,scope,currentScopes);
@@ -104,7 +112,11 @@ public class FulgoraVertexMemory<M> {
     }
 
     void completeIteration() {
-        for (VertexState<M> state : vertexStates.values()) state.completeIteration();
+        log.debug("Total messages per iteration "  + messageCount);
+        for (VertexState<M> state : vertexStates.values()) {
+            state.completeIteration();
+        }
+        messageCount = 0;
         partitionVertices.clear();
         previousScopes = currentScopes;
         inExecute = false;

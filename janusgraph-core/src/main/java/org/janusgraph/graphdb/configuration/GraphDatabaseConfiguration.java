@@ -200,6 +200,8 @@ public class GraphDatabaseConfiguration {
             "How the graph computer should return the computed results. 'persist' for writing them into the graph, " +
                     "'localtx' for writing them into the local transaction, or 'none' (default)", ConfigOption.Type.MASKABLE, "none");
 
+    public static final ConfigOption<Boolean> COMPUTER_PRELOAD_PROPERTIES = new ConfigOption<>(COMPUTER_NS,"preload-properties",
+        "What the graph computer will load by default all properties or nothing ", ConfigOption.Type.MASKABLE, true);
 
     // ################ Transaction #######################
     // ################################################
