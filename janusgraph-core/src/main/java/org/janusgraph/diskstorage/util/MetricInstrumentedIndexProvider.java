@@ -63,6 +63,11 @@ public class MetricInstrumentedIndexProvider implements IndexProvider {
     }
 
     @Override
+    public void delete(final String store) throws BackendException {
+        indexProvider.delete(store);
+    }
+
+    @Override
     public void mutate(final Map<String, Map<String, IndexMutation>> mutations, final KeyInformation.IndexRetriever information,
                        final BaseTransaction tx) throws BackendException {
         runWithMetrics((BaseTransactionConfigurable) tx, M_MUTATE, () -> indexProvider.mutate(mutations, information, tx));

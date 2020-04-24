@@ -98,6 +98,17 @@ import org.janusgraph.graphdb.types.StandardEdgeLabelMaker;
 import org.janusgraph.graphdb.types.vertices.JanusGraphSchemaVertex;
 import org.janusgraph.graphdb.vertices.CacheVertex;
 import org.janusgraph.testutil.TestGraphConfigs;
+import org.apache.tinkerpop.gremlin.process.traversal.P;
+import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
+import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__;
+import org.apache.tinkerpop.gremlin.process.traversal.step.util.ElementValueComparator;
+import org.apache.tinkerpop.gremlin.structure.Direction;
+import org.apache.tinkerpop.gremlin.structure.Edge;
+import org.apache.tinkerpop.gremlin.structure.Element;
+import org.apache.tinkerpop.gremlin.structure.Graph;
+import org.apache.tinkerpop.gremlin.structure.Vertex;
+import org.apache.tinkerpop.gremlin.structure.VertexProperty;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -2183,6 +2194,42 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
 
         assertEquals(1, recoveryStats[0]); //schema transaction was successful
         assertEquals(4, recoveryStats[1]); //all 4 index transaction had provoked errors in the indexing backend
+    }
+
+    @Test
+    public void testDeleteIndex() throws InterruptedException, ExecutionException {
+        tx.commit();
+        mgmt.commit();
+
+        GraphOfTheGodsFactory.load(graph);
+
+        JanusGraphManagement m = graph.openManagement();
+        JanusGraphIndex mixedIndex = m.getGraphIndex("vertices");
+        m.updateIndex(mixedIndex, SchemaAction.DISABLE_INDEX);
+        JanusGraphIndex compositeIndex = m.getGraphIndex("name");
+        m.updateIndex(compositeIndex, SchemaAction.DISABLE_INDEX);
+        m.commit();
+        graph.tx().commit();
+
+        assertTrue(ManagementSystem.awaitGraphIndexStatus(graph, "vertices")
+                                   .status(SchemaStatus.DISABLED).call().getSucceeded());
+
+        m = graph.openManagement();
+        mixedIndex = m.getGraphIndex("vertices");
+        m.updateIndex(mixedIndex, SchemaAction.REMOVE_INDEX).get();
+        compositeIndex = m.getGraphIndex("name");
+        m.updateIndex(compositeIndex, SchemaAction.REMOVE_INDEX).get();
+        m.commit();
+        graph.tx().commit();
+        m = graph.openManagement();
+        try {
+            Assertions.assertNull(m.getGraphIndex("vertices"));
+            Assertions.assertNull(m.getGraphIndex("name"));
+        } finally {
+            if (null != m) {
+                m.rollback();
+            }
+        }
     }
 
     @Test

@@ -57,6 +57,8 @@ import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.janusgraph.diskstorage.configuration.TransactionalConfiguration;
 import org.janusgraph.diskstorage.configuration.UserModifiableConfiguration;
 import org.janusgraph.diskstorage.configuration.backend.KCVSConfiguration;
+import org.janusgraph.diskstorage.indexing.IndexInformation;
+import org.janusgraph.diskstorage.indexing.IndexProvider;
 import org.janusgraph.diskstorage.keycolumnvalue.scan.EmptyScanJobFuture;
 import org.janusgraph.diskstorage.keycolumnvalue.scan.ScanJobFuture;
 import org.janusgraph.diskstorage.keycolumnvalue.scan.ScanMetrics;
@@ -114,6 +116,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -934,10 +940,15 @@ public class ManagementSystem implements JanusGraphManagement {
                     break;
                 } else if (index instanceof JanusGraphIndex && ((JanusGraphIndex) index).isCompositeIndex()) {
                     builder = graph.getBackend().buildGraphIndexScanJob();
-                } else if (index instanceof RelationTypeIndex) {
+                } else if (index instanceof JanusGraphIndex && ((JanusGraphIndex) index).isMixedIndex()){
+                    new RemoveIndexTrigger(graph, schemaVertex).removeIndex(this);
+                    future = new EmptyIndexJobFuture();
+                    break;
+                }
+                if (index instanceof RelationTypeIndex) {
                     builder = graph.getBackend().buildEdgeScanJob();
                 } else {
-                    throw new IllegalArgumentException("Unsupported Index Type");
+                    builder = graph.getBackend().buildGraphIndexScanJob();
                 }
                 builder.setFinishJob(indexId.getIndexJobFinisher(graph, SchemaAction.MARK_DISCARDED));
                 builder.setJobId(indexId);
@@ -1003,7 +1014,7 @@ public class ManagementSystem implements JanusGraphManagement {
     private static class UpdateStatusTrigger implements Callable<Boolean> {
 
         private static final Logger log =
-                LoggerFactory.getLogger(UpdateStatusTrigger.class);
+            LoggerFactory.getLogger(UpdateStatusTrigger.class);
 
         private final StandardJanusGraph graph;
         private final long schemaVertexId;
@@ -1069,6 +1080,60 @@ public class ManagementSystem implements JanusGraphManagement {
             if (this == oth) return true;
             else if (oth == null || !getClass().isInstance(oth)) return false;
             return schemaVertexId == ((UpdateStatusTrigger) oth).schemaVertexId;
+        }
+
+    }
+
+    private static class RemoveIndexTrigger implements Callable<Boolean> {
+        private final StandardJanusGraph graph;
+        private final Map<String, ? extends IndexInformation> mixedIndexes;
+        private final String indexName;
+        private final Long schemaVertexId;
+
+        private RemoveIndexTrigger(StandardJanusGraph graph, JanusGraphSchemaVertex schemaVertex) {
+            this.graph = graph;
+            schemaVertexId = schemaVertex.longId();
+            mixedIndexes = graph.getBackend().getIndexInformation();
+            indexName = schemaVertex.name();
+        }
+
+        @Override
+        public Boolean call() throws Exception {
+            ManagementSystem management = (ManagementSystem) graph.openManagement();
+            try {
+                Boolean result = removeIndex(management);
+                management.commit();
+                return result;
+            } catch (RuntimeException e) {
+                management.rollback();
+                throw e;
+            }
+        }
+
+        public Boolean removeIndex(ManagementSystem management) {
+            try {
+                JanusGraphIndex index = management.getGraphIndex(indexName);
+                JanusGraphSchemaVertex schemaVertex = management.getSchemaVertex(index);
+                IndexProvider indexProvider = (IndexProvider) mixedIndexes.get(index.getBackingIndex());
+                indexProvider.delete(((MixedIndexType) schemaVertex.asIndexType()).getStoreName());
+                schemaVertex.remove();
+                graph.getSchemaCache().expireSchemaElement(schemaVertex.longId());
+                return true;
+            } catch (BackendException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(schemaVertexId);
+        }
+
+        @Override
+        public boolean equals(Object oth) {
+            if (this == oth) return true;
+            else if (oth == null || !getClass().isInstance(oth)) return false;
+            return schemaVertexId == ((RemoveIndexTrigger) oth).schemaVertexId;
         }
 
     }
@@ -1193,18 +1258,30 @@ public class ManagementSystem implements JanusGraphManagement {
         }
 
         public Consumer<ScanMetrics> getIndexJobFinisher(final JanusGraph graph, final SchemaAction action) {
-            Preconditions.checkArgument((graph != null && action != null) || (graph == null && action == null));
+            if (action == null) {
+                return createIndexJobFinisher(null, null);
+            } else if (action == SchemaAction.REMOVE_INDEX) {
+                return createIndexJobFinisher(graph, (m, i) -> {
+                    JanusGraphSchemaVertex schemaVertex = m.getSchemaVertex(i);
+                    schemaVertex.remove();
+                    ((StandardJanusGraph) graph).getSchemaCache().expireSchemaElement(schemaVertex.longId());
+                });
+            } else {
+                return createIndexJobFinisher(graph, (m, i) -> m.updateIndex(i, action));
+            }
+        }
+
+        private Consumer<ScanMetrics> createIndexJobFinisher(final JanusGraph graph, final BiConsumer<ManagementSystem, Index> indexConsumer) {
+            Preconditions.checkArgument((graph != null && indexConsumer != null) || (graph == null && indexConsumer == null));
             return metrics -> {
                 try {
                     if (metrics.get(ScanMetrics.Metric.FAILURE) == 0) {
-                        if (action != null) {
-                            ManagementSystem management = (ManagementSystem) graph.openManagement();
-                            try {
-                                Index index = retrieve(management);
-                                management.updateIndex(index, action);
-                            } finally {
-                                management.commit();
-                            }
+                        ManagementSystem management = (ManagementSystem) graph.openManagement();
+                        try {
+                            Index index = retrieve(management);
+                            indexConsumer.accept(management, index);
+                        } finally {
+                            management.commit();
                         }
                         LOGGER.info("Index update job successful for [{}]", IndexIdentifier.this);
                     } else {
@@ -1215,8 +1292,8 @@ public class ManagementSystem implements JanusGraphManagement {
                 }
             };
         }
-    }
 
+    }
 
     @Override
     public void changeName(JanusGraphSchemaElement element, String newName) {
