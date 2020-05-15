@@ -45,7 +45,8 @@ class StandardScannerExecutor extends AbstractFuture<ScanMetrics> implements Sca
     private static final Logger log =
             LoggerFactory.getLogger(StandardScannerExecutor.class);
 
-    private static final int TIMEOUT_MS = 180000; // 60 seconds
+    private static final int TIMEOUT_MS = 180000; // 3 min
+    private static final int PROCESSOR_TIMEOUT_MIN = 10;
     static final int TIME_PER_TRY = 10; // 10 milliseconds
 
     private final ScanJob job;
@@ -116,8 +117,11 @@ class StandardScannerExecutor extends AbstractFuture<ScanMetrics> implements Sca
         }  catch (Throwable e) {
             log.error("Exception trying to setup the job:", e);
             cleanupSilent();
-            job.workerIterationEnd(metrics);
-            setException(e);
+            try {
+                job.workerIterationEnd(metrics);
+            } finally {
+                setException(e);
+            }
             return;
         }
 
@@ -153,8 +157,11 @@ class StandardScannerExecutor extends AbstractFuture<ScanMetrics> implements Sca
             }
         } catch (Throwable e) {
             log.error("Exception occurred during job execution:", e);
-            job.workerIterationEnd(metrics);
-            setException(e);
+            try {
+                job.workerIterationEnd(metrics);
+            } finally {
+                setException(e);
+            }
         } finally {
             Threads.terminate(processors);
             cleanupSilent();
