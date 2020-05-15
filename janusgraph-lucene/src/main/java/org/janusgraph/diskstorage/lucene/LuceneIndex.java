@@ -171,6 +171,7 @@ public class LuceneIndex implements IndexProvider {
 
     private final Map<String, IndexWriter> writers = new HashMap<>(4);
     private final ReentrantLock writerLock = new ReentrantLock();
+    private volatile boolean isOpen;
 
     private final Map<String, SpatialStrategy> spatial = new ConcurrentHashMap<>(12);
     private final SpatialContext ctx = Geoshape.getSpatialContext();
@@ -189,6 +190,7 @@ public class LuceneIndex implements IndexProvider {
             throw new IllegalArgumentException("Cannot access or write to directory: " + dir);
         }
         basePath = directory.getAbsolutePath();
+        isOpen = true;
         log.debug("Configured Lucene to use base directory [{}]", basePath);
     }
 
@@ -208,6 +210,7 @@ public class LuceneIndex implements IndexProvider {
     }
 
     private IndexWriter getWriter(String store, KeyInformation.IndexRetriever informations) throws BackendException {
+        Preconditions.checkState(isOpen, "LuceneIndex already closed");
         Preconditions.checkArgument(writerLock.isHeldByCurrentThread());
         IndexWriter writer = writers.get(store);
         if (writer == null) {
@@ -1143,10 +1146,14 @@ public class LuceneIndex implements IndexProvider {
 
     @Override
     public void close() throws BackendException {
+        writerLock.lock();
         try {
+            isOpen = false;
             for (final IndexWriter w : writers.values()) w.close();
         } catch (final IOException e) {
             throw new PermanentBackendException("Could not close writers", e);
+        } finally {
+            writerLock.unlock();
         }
     }
 
