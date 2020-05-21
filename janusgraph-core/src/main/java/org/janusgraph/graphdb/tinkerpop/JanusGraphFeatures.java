@@ -14,6 +14,12 @@
 
 package org.janusgraph.graphdb.tinkerpop;
 
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.janusgraph.diskstorage.keycolumnvalue.StoreFeatures;
+import org.janusgraph.graphdb.database.StandardJanusGraph;
+import org.janusgraph.graphdb.transaction.StandardJanusGraphTx;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
@@ -156,16 +162,19 @@ public class JanusGraphFeatures implements Graph.Features {
     }
 
     private class JanusGraphVertexFeatures implements VertexFeatures {
+        private final Map<String, VertexProperty.Cardinality> key2Cardinality = new ConcurrentHashMap<>();
 
         @Override
         public VertexProperty.Cardinality getCardinality(final String key) {
-            StandardJanusGraphTx tx = (StandardJanusGraphTx)JanusGraphFeatures.this.graph.newTransaction();
-            try {
-                if (!tx.containsPropertyKey(key)) return tx.getConfiguration().getAutoSchemaMaker().defaultPropertyCardinality(key).convert();
-                return tx.getPropertyKey(key).cardinality().convert();
-            } finally {
-                tx.rollback();
-            }
+            return key2Cardinality.computeIfAbsent(key, (ignored) -> {
+                StandardJanusGraphTx tx = (StandardJanusGraphTx) JanusGraphFeatures.this.graph.newTransaction();
+                try {
+                    if (!tx.containsPropertyKey(key)) return tx.getConfiguration().getAutoSchemaMaker().defaultPropertyCardinality(key).convert();
+                    return tx.getPropertyKey(key).cardinality().convert();
+                } finally {
+                    tx.rollback();
+                }
+            });
         }
 
         @Override

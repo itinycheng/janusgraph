@@ -193,6 +193,8 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
 
     private final String name;
 
+    private final JanusGraphFeatures features;
+
     public StandardJanusGraph(GraphDatabaseConfiguration configuration) {
 
         this.config = configuration;
@@ -208,6 +210,7 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
 
         this.serializer = config.getSerializer();
         StoreFeatures storeFeatures = backend.getStoreFeatures();
+        this.features = JanusGraphFeatures.getFeatures(this, backend.getStoreFeatures());
         this.indexSerializer = new IndexSerializer(configuration.getConfiguration(), this.serializer,
                 this.backend.getIndexInformation(), storeFeatures.isDistributed() && storeFeatures.isKeyOrdered());
         this.edgeSerializer = new EdgeSerializer(this.serializer);
@@ -384,7 +387,7 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
 
     @Override
     public Features features() {
-        return JanusGraphFeatures.getFeatures(this, backend.getStoreFeatures());
+        return features;
     }
 
 
