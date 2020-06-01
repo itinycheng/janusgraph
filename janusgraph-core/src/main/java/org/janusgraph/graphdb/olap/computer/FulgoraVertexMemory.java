@@ -14,6 +14,10 @@
 
 package org.janusgraph.graphdb.olap.computer;
 
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
@@ -22,6 +26,8 @@ import org.apache.tinkerpop.gremlin.process.computer.MessageScope;
 import org.apache.tinkerpop.gremlin.process.computer.VertexComputeKey;
 import org.apache.tinkerpop.gremlin.process.computer.VertexProgram;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+import org.janusgraph.diskstorage.EntryList;
+import org.janusgraph.graphdb.idmanagement.IDManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.janusgraph.diskstorage.EntryList;
@@ -139,8 +145,8 @@ public class FulgoraVertexMemory<M> {
         });
     }
 
-    public Set<String> getMemoryKeys() {
-        return computeKeys.stream().filter(key -> inExecute || !key.isTransient()).map(VertexComputeKey::getKey).collect(Collectors.toSet());
+    public Iterable<String> getMemoryKeys() {
+        return Iterables.transform(Iterables.filter(computeKeys, k -> inExecute || !k.isTransient()), VertexComputeKey::getKey);
     }
 
     private static MessageScope normalizeScope(MessageScope scope) {

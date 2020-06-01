@@ -15,6 +15,12 @@
 package org.janusgraph.graphdb.olap.computer;
 
 import com.google.common.base.Preconditions;
+import java.util.*;
+import java.util.function.BiFunction;
+import java.util.stream.Stream;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer;
 import org.apache.tinkerpop.gremlin.process.computer.MessageScope;
 import org.apache.tinkerpop.gremlin.process.computer.Messenger;
@@ -37,6 +43,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
+import org.janusgraph.core.JanusGraphEdge;
+import org.janusgraph.core.JanusGraphException;
+import org.janusgraph.core.JanusGraphVertex;
+import org.janusgraph.core.JanusGraphVertexProperty;
+import org.janusgraph.graphdb.vertices.PreloadedVertex;
 
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
@@ -67,23 +78,30 @@ class VertexMemoryHandler<M> implements PreloadedVertex.PropertyMixing, Messenge
 
     @Override
     public <V> Iterator<VertexProperty<V>> properties(String... keys) {
-        final Set<String> memoryKeys = vertexMemory.getMemoryKeys();
-        if (memoryKeys.isEmpty()) return Collections.emptyIterator();
-        if (keys==null || keys.length==0) {
-            keys = memoryKeys.stream().filter(k -> !k.equals(TraversalVertexProgram.HALTED_TRAVERSERS)).toArray(String[]::new);
+        final Iterator<String> memoryKeys = vertexMemory.getMemoryKeys().iterator();
+        boolean userSuppliedKeys = keys != null && keys.length > 0;
+        if (userSuppliedKeys) {
+            Arrays.sort(keys);
         }
-        final List<VertexProperty<V>> result = new ArrayList<>(Math.min(keys.length,memoryKeys.size()));
-        for (String key : keys) {
-            if (!supports(key)) continue;
-            V value = vertexMemory.getProperty(vertexId,key);
-            if (value!=null) result.add(constructProperty(key,value));
-        }
-        return result.iterator();
+        return Iterators.transform(
+            Iterators.filter(memoryKeys, key -> {
+                if (key == null || (!userSuppliedKeys && key.equals(TraversalVertexProgram.HALTED_TRAVERSERS))) {
+                    return false;
+                }
+                if (userSuppliedKeys && Arrays.binarySearch(keys, key) < 0) {
+                    return false;
+                }
+                final V value = vertexMemory.getProperty(vertexId, key);
+                return value != null;
+            }), key -> {
+                final V value = vertexMemory.getProperty(vertexId, key);
+                return constructProperty(key, value);
+            });
     }
 
     @Override
     public boolean supports(String key) {
-        return vertexMemory.getMemoryKeys().contains(key);
+        return Iterators.any(vertexMemory.getMemoryKeys().iterator(), k -> k.equals(key));
     }
 
     @Override
