@@ -77,6 +77,7 @@ public class MetricInstrumentedStore implements KeyColumnValueStore {
 
     public static final String M_CONTAINS_KEY = "containsKey";
     public static final String M_GET_SLICE = "getSlice";
+    public static final String M_CAS_UPDATE = "casUpdate";
     public static final String M_MUTATE = "mutate";
     public static final String M_ACQUIRE_LOCK = "acquireLock";
     public static final String M_GET_KEYS = "getKeys";
@@ -147,6 +148,14 @@ public class MetricInstrumentedStore implements KeyColumnValueStore {
         runWithMetrics(txh, metricsStoreName, M_ACQUIRE_LOCK, (StorageCallable<Void>) () -> {
             backend.acquireLock(key, column, expectedValue, txh);
             return null;
+        });
+    }
+
+    @Override
+    public boolean casUpdate(StaticBuffer key, Entry entry, StaticBuffer newValue,
+            StoreTransaction txh) throws BackendException {
+        return runWithMetrics(txh, metricsStoreName, M_CAS_UPDATE, () -> {
+            return backend.casUpdate(key, entry, newValue, txh);
         });
     }
 

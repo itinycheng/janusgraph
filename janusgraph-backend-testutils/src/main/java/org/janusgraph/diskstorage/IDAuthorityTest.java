@@ -29,6 +29,7 @@ import org.janusgraph.diskstorage.keycolumnvalue.KeyRange;
 import org.janusgraph.diskstorage.keycolumnvalue.StoreFeatures;
 import org.janusgraph.diskstorage.keycolumnvalue.StoreManager;
 import org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration;
+import org.janusgraph.graphdb.configuration.JanusGraphConstants;
 import org.janusgraph.graphdb.database.idassigner.IDBlockSizer;
 import org.janusgraph.graphdb.database.idassigner.IDPoolExhaustedException;
 import org.janusgraph.graphdb.idmanagement.UniqueInstanceIdRetriever;
@@ -61,6 +62,7 @@ import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.ID
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.IDAUTHORITY_CONFLICT_AVOIDANCE;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.IDAUTHORITY_WAIT;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.IDS_BLOCK_SIZE;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.IDS_CAS;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.UNIQUE_INSTANCE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -113,6 +115,7 @@ public abstract class IDAuthorityTest {
         ModifiableConfiguration c = GraphDatabaseConfiguration.buildGraphConfiguration();
         c.set(IDAUTHORITY_WAIT, Duration.ofMillis(100L));
         c.set(IDS_BLOCK_SIZE,400);
+        c.set(IDS_CAS,true);
         return c;
     }
 
@@ -162,7 +165,7 @@ public abstract class IDAuthorityTest {
 
             manager[i] = openStorageManager();
             StoreFeatures storeFeatures = manager[i].getFeatures();
-            KeyColumnValueStore idStore = manager[i].openDatabase("ids");
+            KeyColumnValueStore idStore = manager[i].openDatabase(JanusGraphConstants.JANUSGRAPH_ID_STORE_NAME);
             if (storeFeatures.isKeyConsistent())
                 idAuthorities[i] = new ConsistentKeyIDAuthority(idStore, manager[i], sc);
             else throw new IllegalArgumentException("Cannot open id store");

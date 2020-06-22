@@ -42,7 +42,7 @@ public abstract class AbstractIDAuthority implements IDAuthority {
       * some additional action to prevent such
       * corruption.
       */
-    protected static final long BASE_ID = 1;
+    public static final long BASE_ID = 1;
 
     protected final Duration idApplicationWaitMS;
 

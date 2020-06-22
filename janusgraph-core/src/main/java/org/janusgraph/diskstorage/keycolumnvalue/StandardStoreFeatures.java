@@ -44,6 +44,7 @@ public class StandardStoreFeatures implements StoreFeatures {
     private final Configuration scanTxConfig;
     private final boolean supportsInterruption;
     private final boolean optimisticLocking;
+    private final boolean supportsCASUpdate;
 
     @Override
     public boolean hasScan() {
@@ -159,6 +160,11 @@ public class StandardStoreFeatures implements StoreFeatures {
         return optimisticLocking;
     }
 
+    @Override
+    public boolean supportsCASUpdate() {
+        return supportsCASUpdate;
+    }
+
     /**
      * The only way to instantiate {@link StandardStoreFeatures}.
      */
@@ -186,6 +192,7 @@ public class StandardStoreFeatures implements StoreFeatures {
         private Configuration scanTxConfig;
         private boolean supportsInterruption = true;
         private boolean optimisticLocking;
+        private boolean supportsCASUpdate = false;
 
         /**
          * Construct a Builder with everything disabled/unsupported/false/null.
@@ -219,6 +226,7 @@ public class StandardStoreFeatures implements StoreFeatures {
             scanTxConfig(template.getScanTxConfig());
             supportsInterruption(template.supportsInterruption());
             optimisticLocking(template.hasOptimisticLocking());
+            supportsCASUpdate(template.supportsCASUpdate());
         }
 
         public Builder optimisticLocking(boolean b) {
@@ -336,6 +344,11 @@ public class StandardStoreFeatures implements StoreFeatures {
             return this;
         }
 
+        public Builder supportsCASUpdate(boolean i) {
+            supportsCASUpdate = i;
+            return this;
+        }
+
         public StandardStoreFeatures build() {
             return new StandardStoreFeatures(consistentScan, unorderedScan, orderedScan,
                     multiQuery, locking, batchMutation, localKeyPartition,
@@ -343,7 +356,8 @@ public class StandardStoreFeatures implements StoreFeatures {
                     timestamps, preferredTimestamps, cellLevelTTL,
                     storeLevelTTL, visibility, supportsPersist,
                     keyConsistentTxConfig,
-                    localKeyConsistentTxConfig, scanTxConfig, supportsInterruption, optimisticLocking);
+                    localKeyConsistentTxConfig, scanTxConfig, supportsInterruption,
+                    optimisticLocking, supportsCASUpdate);
         }
     }
 
@@ -356,7 +370,8 @@ public class StandardStoreFeatures implements StoreFeatures {
                                   boolean visibility, boolean supportsPersist,
                                   Configuration keyConsistentTxConfig,
                                   Configuration localKeyConsistentTxConfig,
-                                  Configuration scanTxConfig, boolean supportsInterruption, boolean optimisticLocking) {
+                                  Configuration scanTxConfig, boolean supportsInterruption,
+            boolean optimisticLocking, boolean supportsCASUpdate) {
         this.consistentScan = consistentScan;
         this.unorderedScan = unorderedScan;
         this.orderedScan = orderedScan;
@@ -379,5 +394,6 @@ public class StandardStoreFeatures implements StoreFeatures {
         this.scanTxConfig = scanTxConfig;
         this.supportsInterruption = supportsInterruption;
         this.optimisticLocking = optimisticLocking;
+        this.supportsCASUpdate = supportsCASUpdate;
     }
 }
