@@ -70,7 +70,7 @@ class StandardScannerExecutor extends AbstractFuture<ScanMetrics> implements Sca
                             final StoreFeatures storeFeatures,
                             final int numProcessors, final int workBlockSize,
                             final Configuration jobConfiguration,
-                            final Configuration graphConfiguration) {
+                            final Configuration graphConfiguration) throws BackendException {
         this.job = job;
         this.finishJob = finishJob;
         this.store = store;
@@ -82,6 +82,7 @@ class StandardScannerExecutor extends AbstractFuture<ScanMetrics> implements Sca
         this.graphConfiguration = graphConfiguration;
 
         metrics = new StandardScanMetrics();
+
     }
 
 
@@ -274,10 +275,6 @@ class StandardScannerExecutor extends AbstractFuture<ScanMetrics> implements Sca
             this.finished=true;
         }
     }
-
-
-
-
 }
 
 
