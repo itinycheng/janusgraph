@@ -27,6 +27,7 @@ import org.janusgraph.core.PropertyKey;
 import org.janusgraph.core.schema.ConsistencyModifier;
 import org.janusgraph.core.schema.Mapping;
 import org.janusgraph.graphdb.database.management.ModifierType;
+import org.janusgraph.graphdb.database.serialize.AttributeUtils;
 import org.janusgraph.graphdb.internal.ElementCategory;
 import org.janusgraph.graphdb.internal.InternalRelationType;
 import org.janusgraph.graphdb.internal.JanusGraphSchemaCategory;
@@ -41,10 +42,6 @@ import java.util.Set;
  * @author Joshua Shinavier (http://fortytwo.net)
  */
 public class TypeUtil {
-
-    public static boolean hasSimpleInternalVertexKeyIndex(JanusGraphRelation rel) {
-        return rel instanceof JanusGraphVertexProperty && hasSimpleInternalVertexKeyIndex((JanusGraphVertexProperty) rel);
-    }
 
     public static void checkTypeName(JanusGraphSchemaCategory category, String name) {
         switch (category) {
@@ -64,15 +61,11 @@ public class TypeUtil {
         }
     }
 
-    public static boolean hasSimpleInternalVertexKeyIndex(JanusGraphVertexProperty prop) {
-        return hasSimpleInternalVertexKeyIndex(prop.propertyKey());
-    }
-
     public static boolean hasSimpleInternalVertexKeyIndex(PropertyKey key) {
         InternalRelationType type = (InternalRelationType)key;
         for (IndexType index : type.getKeyIndexes()) {
-            if (index.getElement() == ElementCategory.VERTEX && index.indexesKey(key)) {
-                if (index.isMixedIndex()) {
+            if (index.getElement() == ElementCategory.VERTEX) {
+                if (index.isMixedIndex() && AttributeUtils.isString(key.dataType())) {
                     ParameterIndexField field = ((MixedIndexType) index).getField(key);
                     Object mapping = ParameterType.MAPPING.findParameter(field.getParameters(), null);
                     if (Mapping.STRING.equals(mapping)) {

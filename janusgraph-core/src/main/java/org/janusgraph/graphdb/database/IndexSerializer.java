@@ -209,8 +209,7 @@ public class IndexSerializer {
         final int ttl = updateType==IndexMutationType.ADD?StandardJanusGraph.getTTL(relation):0;
         for (final PropertyKey type : relation.getPropertyKeysDirect()) {
             if (type == null) continue;
-            for (final IndexType index : ((InternalRelationType) type).getKeyIndexes()) {
-                if (!indexFilter.indexAppliesTo(index,relation)) continue;
+            for (final IndexType index : relation.tx().getApplicableIndices(relation, type)) {
                 IndexUpdate update;
                 if (index instanceof CompositeIndexType) {
                     final CompositeIndexType iIndex= (CompositeIndexType) index;
@@ -237,9 +236,8 @@ public class IndexSerializer {
             assert rel.isProperty();
             final JanusGraphVertexProperty p = (JanusGraphVertexProperty)rel;
             assert rel.isNew() || rel.isRemoved(); assert rel.getVertex(0).equals(vertex);
-            final IndexMutationType updateType = getUpdateType(rel);
-            for (final IndexType index : ((InternalRelationType)p.propertyKey()).getKeyIndexes()) {
-                if (!indexFilter.indexAppliesTo(index,vertex)) continue;
+            final IndexUpdate.Type updateType = getUpdateType(rel);
+            for (final IndexType index : vertex.tx().getApplicableIndices(vertex, p.propertyKey())) {
                 if (index.isCompositeIndex()) { //Gather composite indexes
                     final CompositeIndexType cIndex = (CompositeIndexType)index;
                     final IndexRecords updateRecords = indexMatches(vertex,cIndex,updateType==IndexMutationType.DELETE,p.propertyKey(),new IndexRecordEntry(p));

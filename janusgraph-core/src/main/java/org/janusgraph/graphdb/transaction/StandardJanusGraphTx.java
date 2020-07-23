@@ -37,6 +37,7 @@ import org.janusgraph.core.MixedIndexAggQuery;
 import org.janusgraph.core.Multiplicity;
 import org.janusgraph.core.PropertyKey;
 import org.janusgraph.core.ReadOnlyTransactionException;
+import org.apache.commons.lang3.tuple.Pair;
 import org.janusgraph.core.RelationType;
 import org.janusgraph.core.SchemaViolationException;
 import org.janusgraph.core.VertexLabel;
@@ -232,6 +233,12 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
      * This cache my not release elements since that would entail an expensive linear scan over addedRelations
      */
     private IndexCache newVertexIndexEntries;
+
+    private Map<PropertyKey, Boolean> propertyKeyHasIndexMap = new ConcurrentHashMap<>();
+
+    private Map<Pair<PropertyKey, JanusGraphVertex>, List<IndexType>> vertexProperty2ApplicableIndices = new ConcurrentHashMap<>();
+
+    private Map<PropertyKey, Iterable<IndexType>> originalIndices = new ConcurrentHashMap<>();
 
     //######## Lock applications
     /**
@@ -713,7 +720,9 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         //Update transaction data structures
         if (relation.isNew()) {
             addedRelations.remove(relation);
-            if (TypeUtil.hasSimpleInternalVertexKeyIndex(relation)) newVertexIndexEntries.remove((JanusGraphVertexProperty) relation);
+            if (relation instanceof JanusGraphVertexProperty && hasSimpleInternalVertexKeyIndex(((JanusGraphVertexProperty) relation).propertyKey())) {
+                newVertexIndexEntries.remove((JanusGraphVertexProperty) relation);
+            }
         } else {
             Preconditions.checkArgument(relation.isLoaded());
             Map<Long, InternalRelation> result = deletedRelations;
@@ -864,7 +873,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
                 vertexCache.add(vertex, vertex.id());
             }
         }
-        if (TypeUtil.hasSimpleInternalVertexKeyIndex(r)) {
+        if (r instanceof JanusGraphVertexProperty && hasSimpleInternalVertexKeyIndex(((JanusGraphVertexProperty) r).propertyKey())) {
             newVertexIndexEntries.add((JanusGraphVertexProperty) r);
         }
     }
@@ -875,6 +884,40 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
 
     public JanusGraphVertexProperty addProperty(JanusGraphVertex vertex, PropertyKey key, Object value, Long id) {
         return addProperty(key.cardinality().convert(), vertex, key, value, id);
+    }
+
+    public List<IndexType> getApplicableIndices(JanusGraphElement element, PropertyKey key) {
+        Pair<PropertyKey, JanusGraphVertex> pair;
+        Iterable<IndexType> currentIndices = ((InternalRelationType) key).getKeyIndexes();
+        if (!currentIndices.iterator().hasNext()) {
+            return Collections.emptyList();
+        }
+        if (element instanceof JanusGraphVertex) {
+            pair = Pair.of(key, ((JanusGraphVertex) element).vertexLabel());
+        } else if (element instanceof JanusGraphEdge) {
+            pair = Pair.of(key, ((JanusGraphEdge) element).edgeLabel());
+        } else if (element instanceof JanusGraphVertexProperty) {
+            pair = Pair.of(key, ((JanusGraphVertexProperty) element).propertyKey());
+        } else {
+            throw new IllegalArgumentException(element.getClass().getSimpleName());
+        }
+        // Logic for handling resetCache
+        Iterable<IndexType> savedIndices = originalIndices.get(key);
+        if (savedIndices != null && !currentIndices.equals(savedIndices)) {
+            vertexProperty2ApplicableIndices.remove(pair);
+            originalIndices.put(key, currentIndices);
+        } else if (savedIndices == null) {
+            originalIndices.put(key, currentIndices);
+        }
+        return vertexProperty2ApplicableIndices.computeIfAbsent(pair, k -> {
+            List<IndexType> indices = new ArrayList<>();
+            for (final IndexType index : currentIndices) {
+                if (IndexSerializer.indexAppliesTo(index, element)) {
+                    indices.add(index);
+                }
+            }
+            return indices;
+        });
     }
 
     public JanusGraphVertexProperty addProperty(VertexProperty.Cardinality cardinality, JanusGraphVertex vertex, PropertyKey key, Object value) {
@@ -894,9 +937,9 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
 
         //Determine unique indexes
         final List<IndexLockTuple> uniqueIndexTuples = new ArrayList<>();
-        for (CompositeIndexType index : TypeUtil.getUniqueIndexes(key)) {
-            IndexRecords matches = IndexRecordUtil.indexMatches(vertex, index, key, normalizedValue);
-            for (Object[] match : matches.getRecordValues()) uniqueIndexTuples.add(new IndexLockTuple(index,match));
+        for (IndexType index : Iterables.filter(getApplicableIndices(vertex, key), i -> i instanceof CompositeIndexType && ((CompositeIndexType)i).getCardinality() == Cardinality.SINGLE)) {
+            IndexRecords matches = IndexRecordUtil.indexMatches(vertex, (CompositeIndexType) index, key, normalizedValue);
+            for (Object[] match : matches.getRecordValues()) uniqueIndexTuples.add(new IndexLockTuple((CompositeIndexType) index,match));
         }
 
         TransactionLock uniqueLock = getUniquenessLock(vertex, (InternalRelationType) key, normalizedValue);
@@ -1367,7 +1410,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         private List<PredicateCondition<PropertyKey, JanusGraphElement>> getEqualityConditions(Condition<JanusGraphElement> condition) {
             if (condition instanceof PredicateCondition) {
                 final PredicateCondition<PropertyKey, JanusGraphElement> pc = (PredicateCondition) condition;
-                if (pc.getPredicate() == Cmp.EQUAL && TypeUtil.hasSimpleInternalVertexKeyIndex(pc.getKey())) return Collections.singletonList(pc);
+                if (pc.getPredicate() == Cmp.EQUAL && hasSimpleInternalVertexKeyIndex(pc.getKey())) return Collections.singletonList(pc);
             } else if (condition instanceof And) {
                 return StreamSupport.stream(condition.getChildren().spliterator(), false)
                                     .map(this::getEqualityConditions)
@@ -1541,6 +1584,10 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         }
     }
 
+    private boolean hasSimpleInternalVertexKeyIndex(PropertyKey key) {
+        return propertyKeyHasIndexMap.computeIfAbsent(key, TypeUtil::hasSimpleInternalVertexKeyIndex);
+    }
+
     private final Function<Object, JanusGraphVertex> vertexIDConversionFct = id -> {
         Preconditions.checkNotNull(id);
         return getInternalVertex(id);
@@ -1636,7 +1683,9 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         uniqueLocks = Collections.emptyMap();
         newVertexIndexEntries = EmptyIndexCache.getInstance();
         newTypeCache = Collections.emptyMap();
-        schemaVertexCache = null;
+        vertexProperty2ApplicableIndices = null;
+        originalIndices = null;
+        propertyKeyHasIndexMap = null;
     }
 
     @Override
