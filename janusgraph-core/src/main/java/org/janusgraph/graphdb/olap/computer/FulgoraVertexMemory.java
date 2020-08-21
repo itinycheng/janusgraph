@@ -110,7 +110,7 @@ public class FulgoraVertexMemory<M> {
         messageCount++;
         VertexState<M> state = get(vertexId,true);
         if (scope instanceof MessageScope.Global) state.addMessage(message,GLOBAL_SCOPE,currentScopes,combiner);
-        else state.setMessage(message,scope,currentScopes);
+        else state.addMessage(message,scope,currentScopes, combiner);
     }
 
     Stream<M> getMessage(Object vertexId, MessageScope scope) {
