@@ -181,7 +181,7 @@ public class LuceneIndex implements IndexProvider {
     /**
      * lazy cache for the delegating analyzers used for writing or querrying for each store
      */
-    private final Map<String, LuceneCustomAnalyzer> delegatingAnalyzers = new HashMap<>();
+    private final Map<String, LuceneCustomAnalyzer> delegatingAnalyzers = new ConcurrentHashMap<>();
 
     public LuceneIndex(Configuration config) {
         final String dir = config.get(GraphDatabaseConfiguration.INDEX_DIRECTORY);
