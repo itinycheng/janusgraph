@@ -399,18 +399,22 @@ public class RestElasticSearchClient implements ElasticSearchClient {
         if (bulkRefreshEnabled) {
             APPEND_OP.apply(builder).append("refresh=").append(bulkRefresh);
         }
+        APPEND_OP.apply(builder).append("filter_path=").append("took,-items.index._index,-items.index._type,items.index.error");
         builder.insert(0, REQUEST_SEPARATOR + "_bulk");
 
         final Response response = performRequest(REQUEST_TYPE_POST, builder.toString(), outputStream.toByteArray());
         try (final InputStream inputStream = response.getEntity().getContent()) {
             final RestBulkResponse bulkResponse = mapper.readValue(inputStream, RestBulkResponse.class);
-            final List<Object> errors = bulkResponse.getItems().stream()
-                .flatMap(item -> item.values().stream())
-                .filter(item -> item.getError() != null && item.getStatus() != 404)
-                .map(RestBulkItemResponse::getError).collect(Collectors.toList());
-            if (!errors.isEmpty()) {
-                errors.forEach(error -> log.error("Failed to execute ES query: {}", error));
-                throw new IOException("Failure(s) in Elasticsearch bulk request: " + errors);
+            // All data filtered instead of errors, so if no errors present the response is empty
+            if (bulkResponse.getItems() != null) {
+                final List<Object> errors = bulkResponse.getItems().stream()
+                                                        .flatMap(item -> item.values().stream())
+                                                        .filter(item -> item.getError() != null && item.getStatus() != 404)
+                                                        .map(RestBulkItemResponse::getError).collect(Collectors.toList());
+                if (!errors.isEmpty()) {
+                    errors.forEach(error -> log.error("Failed to execute ES query: {}", error));
+                    throw new IOException("Failure(s) in Elasticsearch bulk request: " + errors);
+                }
             }
         }
     }
