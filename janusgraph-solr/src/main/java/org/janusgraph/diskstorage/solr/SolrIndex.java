@@ -121,6 +121,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_MAX_RESULT_SET_SIZE;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_NAME;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_NS;
 
 /**
@@ -251,10 +252,12 @@ public class SolrIndex implements IndexProvider {
     private final int batchSize;
     private final boolean waitSearcher;
     private final boolean kerberosEnabled;
+    private final String indexName;
 
     public SolrIndex(final Configuration config) throws BackendException {
         Preconditions.checkArgument(config!=null);
         configuration = config;
+        indexName = config.get(INDEX_NAME);
         mode = Mode.parse(config.get(SOLR_MODE));
         kerberosEnabled = config.get(KERBEROS_ENABLED);
         dynFields = config.get(DYNAMIC_FIELDS);
@@ -383,7 +386,7 @@ public class SolrIndex implements IndexProvider {
         if (mode==Mode.CLOUD) {
             final CloudSolrClient client = (CloudSolrClient) solrClient;
             try {
-                createCollectionIfNotExists(client, configuration, store);
+                createCollectionIfNotExists(client, configuration, getCollectionName(store));
             } catch (final IOException | SolrServerException | InterruptedException | KeeperException e) {
                 throw new PermanentBackendException(e);
             }
@@ -414,19 +417,20 @@ public class SolrIndex implements IndexProvider {
 
     @Override
     public void delete(final String store) throws BackendException {
+        String collection = getCollectionName(store);
         if (mode == Mode.CLOUD) {
             final CloudSolrClient client = (CloudSolrClient) solrClient;
             try {
-                if (!checkIfCollectionExists(client, store)) {
-                    final CollectionAdminRequest.Delete deleteRequest = CollectionAdminRequest.deleteCollection(store);
+                if (!checkIfCollectionExists(client, collection)) {
+                    final CollectionAdminRequest.Delete deleteRequest = CollectionAdminRequest.deleteCollection(collection);
                     final CollectionAdminResponse deleteResponse = deleteRequest.process(client);
                     if (deleteResponse.isSuccess()) {
-                        logger.trace("Collection {} successfully deleted.", store);
+                        logger.trace("Collection {} successfully deleted.", collection);
                     } else {
                         throw new SolrServerException(Joiner.on("\n").join(deleteResponse.getErrorMessages()));
                     }
                 }
-                waitForRecoveriesToFinish(client, store);
+                waitForRecoveriesToFinish(client, collection);
             } catch (final IOException | SolrServerException | InterruptedException | KeeperException e) {
                 throw new PermanentBackendException(e);
             }
@@ -498,14 +502,18 @@ public class SolrIndex implements IndexProvider {
                     }
                 }
 
-                commitDeletes(collectionName, deleteIds);
-                commitChanges(collectionName, changes);
+                commitDeletes(getCollectionName(collectionName), deleteIds);
+                commitChanges(getCollectionName(collectionName), changes);
             }
         } catch (final IllegalArgumentException e) {
             throw new PermanentBackendException("Unable to complete query on Solr.", e);
         } catch (final Exception e) {
             throw storageException(e);
         }
+    }
+
+    private String getCollectionName(String store) {
+        return indexName + "_" + store;
     }
 
     private void handleRemovalsFromIndex(String collectionName, String keyIdField, String docId,
@@ -534,7 +542,7 @@ public class SolrIndex implements IndexProvider {
 
         final UpdateRequest singleDocument = newUpdateRequest();
         singleDocument.add(doc);
-        solrClient.request(singleDocument, collectionName);
+        solrClient.request(singleDocument, getCollectionName(collectionName));
 
     }
 
@@ -585,8 +593,8 @@ public class SolrIndex implements IndexProvider {
                     });
                     newDocuments.add(doc);
                 }
-                commitDeletes(collectionName, deleteIds);
-                commitChanges(collectionName, newDocuments);
+                commitDeletes(getCollectionName(collectionName), deleteIds);
+                commitChanges(getCollectionName(collectionName), newDocuments);
             }
         } catch (final Exception e) {
             throw new TemporaryBackendException("Could not restore Solr index", e);
@@ -649,11 +657,11 @@ public class SolrIndex implements IndexProvider {
     @Override
     public Stream<String> query(IndexQuery query, KeyInformation.IndexRetriever information,
                                 BaseTransaction tx) throws BackendException {
-        final String collection = query.getStore();
+        final String collection = getCollectionName(query.getStore());
         final String keyIdField = getKeyFieldId(collection);
         final SolrQuery solrQuery = new SolrQuery("*:*");
         solrQuery.set(CommonParams.FL, keyIdField);
-        final String queryFilter = buildQueryFilter(query.getCondition(), information.get(collection));
+        final String queryFilter = buildQueryFilter(query.getCondition(), information.get(query.getStore()));
         solrQuery.addFilterQuery(queryFilter);
         if (!query.getOrder().isEmpty()) {
             addOrderToQuery(solrQuery, query.getOrder(), information.get(collection));
@@ -727,7 +735,7 @@ public class SolrIndex implements IndexProvider {
                                                  BaseTransaction tx) throws BackendException {
         final String collection = query.getStore();
         final String keyIdField = getKeyFieldId(collection);
-        return executeQuery(query.hasLimit() ? query.getLimit() : null, query.getOffset(), collection,
+        return executeQuery(query.hasLimit() ? query.getLimit() : null, query.getOffset(), getCollectionName(collection),
             runCommonQuery(query, information, tx, collection, keyIdField), doc -> {
             final double score = Double.parseDouble(doc.getFieldValue("score").toString());
             return new RawQuery.Result<>(doc.getFieldValue(keyIdField).toString(), score);
@@ -819,7 +827,7 @@ public class SolrIndex implements IndexProvider {
         try {
             final String collection = query.getStore();
             final String keyIdField = getKeyFieldId(collection);
-            final QueryResponse response = solrClient.query(collection, runCommonQuery(query, information, tx,
+            final QueryResponse response = solrClient.query(getCollectionName(collection), runCommonQuery(query, information, tx,
                     collection, keyIdField));
             logger.debug("Executed query [{}] in {} ms", query.getQuery(), response.getElapsedTime());
             return response.getResults().getNumFound();
