@@ -189,8 +189,25 @@ public class SolrIndex implements IndexProvider {
             ConfigOption.Type.GLOBAL_OFFLINE, 1);
 
     public static final ConfigOption<Integer> REPLICATION_FACTOR = new ConfigOption<>(SOLR_NS,"replication-factor",
-            "Replication factor for a collection. This applies when creating a new collection which is only supported under the SolrCloud operation mode.",
+            "NRT Replication factor for a collection. This applies when creating a new collection which is only supported under the SolrCloud operation mode.",
             ConfigOption.Type.GLOBAL_OFFLINE, 1);
+
+    public static final ConfigOption<Integer> TLOG_REPLICATION_FACTOR = new ConfigOption<>(SOLR_NS,"tlog-replication-factor",
+        "TLOG Replication factor for a collection. This applies when creating a new collection which is only supported under the SolrCloud operation mode.",
+        ConfigOption.Type.GLOBAL_OFFLINE, 0);
+
+    public static final ConfigOption<Integer> PULL_REPLICATION_FACTOR = new ConfigOption<>(SOLR_NS,"pull-replication-factor",
+        "PULL Replication factor for a collection. This applies when creating a new collection which is only supported under the SolrCloud operation mode.",
+        ConfigOption.Type.GLOBAL_OFFLINE, 0);
+
+    public static final ConfigOption<String[]> CREATE_NODE_SET = new ConfigOption<>(SOLR_NS,"create-node-set",
+        "Allows defining the nodes to spread the new collection across. The format is a comma-separated list of node_names, such as localhost:8983_solr,"
+        + "localhost:8984_solr,localhost:8985_solr. If not provided, the CREATE operation will create shard-replicas spread across all live Solr nodes.",
+        ConfigOption.Type.FIXED, String[].class);
+
+    public static final ConfigOption<Boolean> LAZY_COLLECTION = new ConfigOption<>(SOLR_NS,"lazy-collection",
+        "Create collections in lazy mode instead bulk of any defined",
+        ConfigOption.Type.MASKABLE, Boolean.class, true);
 
     public static final ConfigOption<String> SOLR_DEFAULT_CONFIG = new ConfigOption<>(SOLR_NS,"configset",
             "If specified, the same solr configSet can be reused for each new Collection that is created in SolrCloud.",
@@ -253,6 +270,7 @@ public class SolrIndex implements IndexProvider {
     private final boolean waitSearcher;
     private final boolean kerberosEnabled;
     private final String indexName;
+    private final Set<String> initalizedCollections = new HashSet<>();
 
     public SolrIndex(final Configuration config) throws BackendException {
         Preconditions.checkArgument(config!=null);
@@ -383,41 +401,85 @@ public class SolrIndex implements IndexProvider {
     @Override
     public void register(String store, String key, KeyInformation information, BaseTransaction tx)
             throws BackendException {
+        if (!configuration.get(LAZY_COLLECTION)) {
+            getOrCreateCollection(store);
+        }
+    }
+
+    private Optional<String> getCollectionName(String store) throws BackendException {
+        String collectionName = buildCollectionName(store);
+        if (initalizedCollections.contains(collectionName)) {
+            return Optional.of(collectionName);
+        }
+        if (mode == Mode.CLOUD) {
+            final CloudSolrClient client = (CloudSolrClient) solrClient;
+            try {
+                synchronized (initalizedCollections) {
+                    if (initalizedCollections.contains(collectionName)) {
+                        return Optional.of(collectionName);
+                    }
+                    if (checkIfCollectionExists(client, collectionName)) {
+                        initalizedCollections.add(collectionName);
+                        return Optional.of(collectionName);
+                    }
+                }
+            } catch (InterruptedException | KeeperException e) {
+                throw new PermanentBackendException(e);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private String buildCollectionName(final String store) {
+        return indexName + "_" + store;
+    }
+
+    private String getOrCreateCollection(String store) throws BackendException{
+        String collectionName = buildCollectionName(store);
+        if (initalizedCollections.contains(collectionName)) {
+            return collectionName;
+        }
         if (mode==Mode.CLOUD) {
             final CloudSolrClient client = (CloudSolrClient) solrClient;
             try {
-                createCollectionIfNotExists(client, configuration, getCollectionName(store));
+                synchronized (initalizedCollections) {
+                    if (!initalizedCollections.contains(collectionName)) {
+                        createCollectionIfNotExists(client, configuration, collectionName);
+                        initalizedCollections.add(collectionName);
+                    }
+                }
             } catch (final IOException | SolrServerException | InterruptedException | KeeperException e) {
                 throw new PermanentBackendException(e);
             }
         }
         //Since all data types must be defined in the schema.xml, pre-registering a type does not work
         //But we check Analyse feature
-        String analyzer = ParameterType.STRING_ANALYZER.findParameter(information.getParameters(), null);
-        if (analyzer != null) {
-            //If the key have a tokenizer, we try to get it by reflection
-            try {
-                ((Constructor<Tokenizer>) ClassLoader.getSystemClassLoader().loadClass(analyzer)
-                        .getConstructor()).newInstance();
-            } catch (final ReflectiveOperationException e) {
-                throw new PermanentBackendException(e.getMessage(),e);
-            }
-        }
-        analyzer = ParameterType.TEXT_ANALYZER.findParameter(information.getParameters(), null);
-        if (analyzer != null) {
-            //If the key have a tokenizer, we try to get it by reflection
-            try {
-                ((Constructor<Tokenizer>) ClassLoader.getSystemClassLoader().loadClass(analyzer)
-                        .getConstructor()).newInstance();
-            } catch (final ReflectiveOperationException e) {
-                throw new PermanentBackendException(e.getMessage(),e);
-            }
-        }
+        // String analyzer = ParameterType.STRING_ANALYZER.findParameter(information.getParameters(), null);
+        // if (analyzer != null) {
+        //     //If the key have a tokenizer, we try to get it by reflection
+        //     try {
+        //         ((Constructor<Tokenizer>) ClassLoader.getSystemClassLoader().loadClass(analyzer)
+        //                 .getConstructor()).newInstance();
+        //     } catch (final ReflectiveOperationException e) {
+        //         throw new PermanentBackendException(e.getMessage(),e);
+        //     }
+        // }
+        // analyzer = ParameterType.TEXT_ANALYZER.findParameter(information.getParameters(), null);
+        // if (analyzer != null) {
+        //     //If the key have a tokenizer, we try to get it by reflection
+        //     try {
+        //         ((Constructor<Tokenizer>) ClassLoader.getSystemClassLoader().loadClass(analyzer)
+        //                 .getConstructor()).newInstance();
+        //     } catch (final ReflectiveOperationException e) {
+        //         throw new PermanentBackendException(e.getMessage(),e);
+        //     }
+        // }
+        return collectionName;
     }
 
     @Override
     public void delete(final String store) throws BackendException {
-        String collection = getCollectionName(store);
+        String collection = buildCollectionName(store);
         if (mode == Mode.CLOUD) {
             final CloudSolrClient client = (CloudSolrClient) solrClient;
             try {
@@ -426,6 +488,7 @@ public class SolrIndex implements IndexProvider {
                     final CollectionAdminResponse deleteResponse = deleteRequest.process(client);
                     if (deleteResponse.isSuccess()) {
                         logger.trace("Collection {} successfully deleted.", collection);
+                        initalizedCollections.remove(collection);
                     } else {
                         throw new SolrServerException(Joiner.on("\n").join(deleteResponse.getErrorMessages()));
                     }
@@ -502,18 +565,14 @@ public class SolrIndex implements IndexProvider {
                     }
                 }
 
-                commitDeletes(getCollectionName(collectionName), deleteIds);
-                commitChanges(getCollectionName(collectionName), changes);
+                commitDeletes(getOrCreateCollection(collectionName), deleteIds);
+                commitChanges(getOrCreateCollection(collectionName), changes);
             }
         } catch (final IllegalArgumentException e) {
             throw new PermanentBackendException("Unable to complete query on Solr.", e);
         } catch (final Exception e) {
             throw storageException(e);
         }
-    }
-
-    private String getCollectionName(String store) {
-        return indexName + "_" + store;
     }
 
     private void handleRemovalsFromIndex(String collectionName, String keyIdField, String docId,
@@ -542,7 +601,7 @@ public class SolrIndex implements IndexProvider {
 
         final UpdateRequest singleDocument = newUpdateRequest();
         singleDocument.add(doc);
-        solrClient.request(singleDocument, getCollectionName(collectionName));
+        solrClient.request(singleDocument, getOrCreateCollection(collectionName));
 
     }
 
@@ -593,8 +652,8 @@ public class SolrIndex implements IndexProvider {
                     });
                     newDocuments.add(doc);
                 }
-                commitDeletes(getCollectionName(collectionName), deleteIds);
-                commitChanges(getCollectionName(collectionName), newDocuments);
+                commitDeletes(getOrCreateCollection(collectionName), deleteIds);
+                commitChanges(getOrCreateCollection(collectionName), newDocuments);
             }
         } catch (final Exception e) {
             throw new TemporaryBackendException("Could not restore Solr index", e);
@@ -657,8 +716,11 @@ public class SolrIndex implements IndexProvider {
     @Override
     public Stream<String> query(IndexQuery query, KeyInformation.IndexRetriever information,
                                 BaseTransaction tx) throws BackendException {
-        final String collection = getCollectionName(query.getStore());
-        final String keyIdField = getKeyFieldId(collection);
+        final Optional<String> collection = getCollectionName(query.getStore());
+        if (!collection.isPresent()) {
+            return Stream.empty();
+        }
+        final String keyIdField = getKeyFieldId(query.getStore());
         final SolrQuery solrQuery = new SolrQuery("*:*");
         solrQuery.set(CommonParams.FL, keyIdField);
         final String queryFilter = buildQueryFilter(query.getCondition(), information.get(query.getStore()));
@@ -672,7 +734,7 @@ public class SolrIndex implements IndexProvider {
         } else {
             solrQuery.setRows(batchSize);
         }
-        return executeQuery(query.hasLimit() ? query.getLimit() : null, 0, collection, solrQuery,
+        return executeQuery(query.hasLimit() ? query.getLimit() : null, 0, collection.get(), solrQuery,
             doc -> doc.getFieldValue(keyIdField).toString());
     }
 
@@ -733,10 +795,13 @@ public class SolrIndex implements IndexProvider {
     @Override
     public Stream<RawQuery.Result<String>> query(RawQuery query, KeyInformation.IndexRetriever information,
                                                  BaseTransaction tx) throws BackendException {
-        final String collection = query.getStore();
-        final String keyIdField = getKeyFieldId(collection);
-        return executeQuery(query.hasLimit() ? query.getLimit() : null, query.getOffset(), getCollectionName(collection),
-            runCommonQuery(query, information, tx, collection, keyIdField), doc -> {
+        final String keyIdField = getKeyFieldId(query.getStore());
+        Optional<String> collection = getCollectionName(query.getStore());
+        if (!collection.isPresent()) {
+            return Stream.empty();
+        }
+        return executeQuery(query.hasLimit() ? query.getLimit() : null, query.getOffset(), collection.get(),
+            runCommonQuery(query, information, tx, collection.get(), keyIdField), doc -> {
             final double score = Double.parseDouble(doc.getFieldValue("score").toString());
             return new RawQuery.Result<>(doc.getFieldValue(keyIdField).toString(), score);
         });
@@ -825,10 +890,13 @@ public class SolrIndex implements IndexProvider {
     public Long totals(RawQuery query, KeyInformation.IndexRetriever information,
                        BaseTransaction tx) throws BackendException {
         try {
-            final String collection = query.getStore();
-            final String keyIdField = getKeyFieldId(collection);
-            final QueryResponse response = solrClient.query(getCollectionName(collection), runCommonQuery(query, information, tx,
-                    collection, keyIdField));
+            final String keyIdField = getKeyFieldId(query.getStore());
+            Optional<String> collection = getCollectionName(query.getStore());
+            if (!collection.isPresent()) {
+                return 0L;
+            }
+            final QueryResponse response = solrClient.query(collection.get(), runCommonQuery(query, information, tx,
+                    collection.get(), keyIdField));
             logger.debug("Executed query [{}] in {} ms", query.getQuery(), response.getElapsedTime());
             return response.getResults().getNumFound();
         } catch (final IOException e) {
@@ -1346,6 +1414,8 @@ public class SolrIndex implements IndexProvider {
             final Integer numShards = config.get(NUM_SHARDS);
             final Integer maxShardsPerNode = config.get(MAX_SHARDS_PER_NODE);
             final Integer replicationFactor = config.get(REPLICATION_FACTOR);
+            final Integer tlogReplicationFactor = config.get(TLOG_REPLICATION_FACTOR);
+            final Integer pullReplicationFactor = config.get(PULL_REPLICATION_FACTOR);
 
 
             // Ideally this property used so a new configset is not uploaded for every single
@@ -1356,6 +1426,11 @@ public class SolrIndex implements IndexProvider {
 
             final CollectionAdminRequest.Create createRequest = CollectionAdminRequest.createCollection(collection, genericConfigSet, numShards, replicationFactor);
             createRequest.setMaxShardsPerNode(maxShardsPerNode);
+            createRequest.setTlogReplicas(tlogReplicationFactor);
+            createRequest.setPullReplicas(pullReplicationFactor);
+            if (config.has(CREATE_NODE_SET) && config.get(CREATE_NODE_SET).length > 0) {
+                createRequest.setCreateNodeSet(String.join(",", config.get(CREATE_NODE_SET)));
+            }
 
             final CollectionAdminResponse createResponse = createRequest.process(client);
             if (createResponse.isSuccess()) {
