@@ -44,13 +44,13 @@ public class HBaseIDStore extends HBaseKeyColumnValueStore {
     }
 
     @Override
-    protected List<Get> buildGets(List<StaticBuffer> keys, Filter getFilter) throws BackendException {
+    protected List<Get> buildGets(List<StaticBuffer> keys, Filter getFilter, final StoreTransaction txh) throws BackendException {
         Configuration config = this.storeManager.getStorageConfig();
         boolean casUpdate = config.has(GraphDatabaseConfiguration.IDS_CAS)
                 ? config.get(GraphDatabaseConfiguration.IDS_CAS)
                 : false;
         if (!casUpdate) {
-            return super.buildGets(keys, getFilter);
+            return super.buildGets(keys, getFilter, txh);
         }
         List<Get> gets = new ArrayList<>(keys.size());
         for (StaticBuffer key : keys) {

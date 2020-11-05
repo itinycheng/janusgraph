@@ -24,6 +24,7 @@ Configuration options that modify JanusGraph's caching behavior
 | cache.db-cache-time | Default expiration time, in milliseconds, for entries in the database-level cache. Entries are evicted when they reach this age even if the cache has room to spare. Set to 0 to disable expiration (cache entries live forever or until memory pressure triggers eviction when set to 0). | Long | 10000 | MASKABLE |
 | cache.tx-cache-size | Maximum size of the transaction-level cache of recently-used vertices. | Integer | 20000 | MASKABLE |
 | cache.tx-dirty-size | Initial size of the transaction-level cache of uncommitted dirty vertices. This is a performance hint for write-heavy, performance-sensitive transactional workloads. If set, it should roughly match the median vertices modified per transaction. | Integer | (no default value) | MASKABLE |
+| cache.tx-query-cache | Use cache for edge query | Boolean | false | MASKABLE |
 
 ### cluster
 Configuration options for multi-machine deployments
@@ -556,7 +557,13 @@ HBase storage options
 
 | Name | Description | Datatype | Default Value | Mutability |
 | ---- | ---- | ---- | ---- | ---- |
+| storage.hbase.async-prefetch | Whether JanusGraph will scan with async prefetch. | Boolean | false | MASKABLE |
+| storage.hbase.cache-blocks | Whether JanusGraph will cache blocks during read requests. | Boolean | true | MASKABLE |
+| storage.hbase.compat-class | The package and class name of the HBaseCompat implementation. HBaseCompat masks version-specific HBase API differences. When this option is unset, JanusGraph calls HBase's VersionInfo.getVersion() and loads the matching compat class at runtime.  Setting this option forces JanusGraph to instead reflectively load and instantiate the specified class. | String | (no default value) | MASKABLE |
 | storage.hbase.compression-algorithm | An HBase Compression.Algorithm enum string which will be applied to newly created column families. The compression algorithm must be installed and available on the HBase cluster.  JanusGraph cannot install and configure new compression algorithms on the HBase cluster by itself. | String | GZ | MASKABLE |
+| storage.hbase.data-block-encoding | Whether JanusGraph will scan with async prefetch. | String | NONE | MASKABLE |
+| storage.hbase.durability | Type of durability during mutations. | String | USE_DEFAULT | MASKABLE |
+| storage.hbase.namespace | The name of the namespace JanusGraph will use. | String | default | FIXED |
 | storage.hbase.region-count | The number of initial regions set when creating JanusGraph's HBase table | Integer | (no default value) | MASKABLE |
 | storage.hbase.regions-per-server | The number of regions per regionserver to set when creating JanusGraph's HBase table | Integer | (no default value) | MASKABLE |
 | storage.hbase.short-cf-names | Whether to shorten the names of JanusGraph's column families to one-character mnemonics to conserve storage space | Boolean | true | FIXED |

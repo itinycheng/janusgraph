@@ -14,6 +14,9 @@
 
 package org.janusgraph.diskstorage.hbase;
 
+import static org.janusgraph.diskstorage.hbase.HBaseStoreManager.ASYNC_PREFETCH;
+import static org.janusgraph.diskstorage.hbase.HBaseStoreManager.CACHE_BLOCKS;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -111,13 +114,13 @@ public class HBaseKeyColumnValueStore implements KeyColumnValueStore {
 
     @Override
     public EntryList getSlice(KeySliceQuery query, StoreTransaction txh) throws BackendException {
-        Map<StaticBuffer, EntryList> result = getHelper(Collections.singletonList(query.getKey()), getFilter(query));
+        Map<StaticBuffer, EntryList> result = getHelper(Collections.singletonList(query.getKey()), getFilter(query), txh);
         return Iterables.getOnlyElement(result.values(), EntryList.EMPTY_LIST);
     }
 
     @Override
     public Map<StaticBuffer,EntryList> getSlice(List<StaticBuffer> keys, SliceQuery query, StoreTransaction txh) throws BackendException {
-        return getHelper(keys, getFilter(query));
+        return getHelper(keys, getFilter(query), txh);
     }
 
     @Override
@@ -139,7 +142,7 @@ public class HBaseKeyColumnValueStore implements KeyColumnValueStore {
         return executeKeySliceQuery(query.getKeyStart().as(StaticBuffer.ARRAY_FACTORY),
                 query.getKeyEnd().as(StaticBuffer.ARRAY_FACTORY),
                 new FilterList(FilterList.Operator.MUST_PASS_ALL),
-                query);
+                query, txh);
     }
 
     @Override
@@ -149,7 +152,7 @@ public class HBaseKeyColumnValueStore implements KeyColumnValueStore {
 
     @Override
     public KeyIterator getKeys(SliceQuery query, StoreTransaction txh) throws BackendException {
-        return executeKeySliceQuery(new FilterList(FilterList.Operator.MUST_PASS_ALL), query);
+        return executeKeySliceQuery(new FilterList(FilterList.Operator.MUST_PASS_ALL), query, txh);
     }
 
     @Override
@@ -174,8 +177,9 @@ public class HBaseKeyColumnValueStore implements KeyColumnValueStore {
         return filter;
     }
 
-    private Map<StaticBuffer,EntryList> getHelper(List<StaticBuffer> keys, Filter getFilter) throws BackendException {
-        List<Get> requests = buildGets(keys, getFilter);
+    private Map<StaticBuffer,EntryList> getHelper(List<StaticBuffer> keys, Filter getFilter,
+                                                  final StoreTransaction txh) throws BackendException {
+        List<Get> requests = buildGets(keys, getFilter, txh);
         final Map<StaticBuffer,EntryList> resultMap = new HashMap<>(keys.size());
 
         try {
@@ -220,10 +224,12 @@ public class HBaseKeyColumnValueStore implements KeyColumnValueStore {
         }
     }
 
-    protected List<Get> buildGets(List<StaticBuffer> keys, Filter getFilter) throws BackendException {
+    protected List<Get> buildGets(List<StaticBuffer> keys, Filter getFilter, final StoreTransaction txh) throws BackendException {
         List<Get> gets = new ArrayList<>(keys.size());
+        Boolean cacheBlocks = txh.getConfiguration().getCustomOption(CACHE_BLOCKS);
         for (StaticBuffer key : keys) {
             Get g = new Get(key.as(StaticBuffer.ARRAY_FACTORY)).addFamily(columnFamilyBytes).setFilter(getFilter);
+            g.setCacheBlocks(cacheBlocks);
             try {
                 g.setTimeRange(0, Long.MAX_VALUE);
             } catch (IOException e) {
@@ -238,16 +244,18 @@ public class HBaseKeyColumnValueStore implements KeyColumnValueStore {
         storeManager.mutateMany(ImmutableMap.of(storeName, mutations), txh);
     }
 
-    private KeyIterator executeKeySliceQuery(FilterList filters, @Nullable SliceQuery columnSlice) throws BackendException {
-        return executeKeySliceQuery(null, null, filters, columnSlice);
+    private KeyIterator executeKeySliceQuery(FilterList filters, @Nullable SliceQuery columnSlice, StoreTransaction txh) throws BackendException {
+        return executeKeySliceQuery(null, null, filters, columnSlice, txh);
     }
 
     private KeyIterator executeKeySliceQuery(@Nullable byte[] startKey,
                                             @Nullable byte[] endKey,
                                             FilterList filters,
-                                            @Nullable SliceQuery columnSlice) throws BackendException {
+                                            @Nullable SliceQuery columnSlice, StoreTransaction txh) throws BackendException {
         Scan scan = new Scan().addFamily(columnFamilyBytes);
 
+        scan.setAsyncPrefetch(txh.getConfiguration().getCustomOption(ASYNC_PREFETCH));
+        scan.setCacheBlocks(txh.getConfiguration().getCustomOption(CACHE_BLOCKS));
         try {
             scan.setTimeRange(0, Long.MAX_VALUE);
         } catch (IOException e) {

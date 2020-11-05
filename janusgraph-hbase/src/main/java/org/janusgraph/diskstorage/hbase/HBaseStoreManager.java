@@ -35,11 +35,15 @@ import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Delete;
+import org.apache.hadoop.hbase.client.Durability;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.RegionInfo;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Row;
+import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.client.TableDescriptor;
@@ -145,6 +149,11 @@ public class HBaseStoreManager extends DistributedStoreManager implements KeyCol
             " to that value.",
             ConfigOption.Type.LOCAL, "janusgraph");
 
+    public static final ConfigOption<String> HBASE_NAMESPACE =
+        new ConfigOption<>(HBASE_NS, "namespace",
+            "The name of the namespace JanusGraph will use.",
+            ConfigOption.Type.FIXED, "default");
+
     public static final ConfigOption<String> HBASE_SNAPSHOT =
             new ConfigOption<>(HBASE_NS, "snapshot-name",
             "The name of an existing HBase snapshot to be used by HBaseSnapshotInputFormat",
@@ -210,6 +219,26 @@ public class HBaseStoreManager extends DistributedStoreManager implements KeyCol
             new ConfigOption<>(HBASE_NS, "regions-per-server",
             "The number of regions per regionserver to set when creating JanusGraph's HBase table",
             ConfigOption.Type.MASKABLE, Integer.class);
+
+    public static final ConfigOption<String> DURABILITY =
+        new ConfigOption<>(HBASE_NS, "durability",
+            "Type of durability during mutations.",
+            ConfigOption.Type.MASKABLE, String.class, Durability.USE_DEFAULT.toString());
+
+    public static final ConfigOption<Boolean> CACHE_BLOCKS =
+        new ConfigOption<>(HBASE_NS, "cache-blocks",
+            "Whether JanusGraph will cache blocks during read requests.",
+            ConfigOption.Type.MASKABLE, Boolean.class, true);
+
+    public static final ConfigOption<Boolean> ASYNC_PREFETCH =
+        new ConfigOption<>(HBASE_NS, "async-prefetch",
+            "Whether JanusGraph will scan with async prefetch.",
+            ConfigOption.Type.MASKABLE, Boolean.class, false);
+
+    public static final ConfigOption<String> DATA_BLOCK_ENCODING =
+        new ConfigOption<>(HBASE_NS, "data-block-encoding",
+            "Whether JanusGraph will scan with async prefetch.",
+            ConfigOption.Type.MASKABLE, String.class, DataBlockEncoding.NONE.name());
 
     public static final int PORT_DEFAULT = 2181;  // Not used. Just for the parent constructor.
 
@@ -381,7 +410,10 @@ public class HBaseStoreManager extends DistributedStoreManager implements KeyCol
                 .orderedScan(true).unorderedScan(true).batchMutation(true)
                 .multiQuery(true).distributed(true).keyOrdered(true).storeTTL(true)
                 .cellTTL(true).timestamps(true).preferredTimestamps(PREFERRED_TIMESTAMPS)
-                .optimisticLocking(true).keyConsistent(c).supportsCASUpdate(true);
+                .optimisticLocking(true).keyConsistent(c).supportsCASUpdate(true)
+                .scanTxConfig(GraphDatabaseConfiguration.buildGraphConfiguration()
+                                                        .set(CACHE_BLOCKS, false)
+                                                        .set(ASYNC_PREFETCH, true));
 
         try {
             fb.localKeyPartition(getDeployment() == Deployment.LOCAL);
@@ -410,13 +442,20 @@ public class HBaseStoreManager extends DistributedStoreManager implements KeyCol
 
         final List<Row> batch = new ArrayList<>(commandsPerKey.size()); // actual batch operation
 
+        Durability durability = Durability.valueOf(storageConfig.get(DURABILITY));
         // convert sorted commands into representation required for 'batch' operation
         for (Pair<List<Put>, Delete> commands : commandsPerKey.values()) {
-            if (commands.getFirst() != null && !commands.getFirst().isEmpty())
+            if (commands.getFirst() != null && !commands.getFirst().isEmpty()) {
+                for (Put put : commands.getFirst()) {
+                    put.setDurability(durability);
+                }
                 batch.addAll(commands.getFirst());
+            }
 
-            if (commands.getSecond() != null)
+            if (commands.getSecond() != null) {
+                commands.getSecond().setDurability(durability);
                 batch.add(commands.getSecond());
+            }
         }
 
         try {
@@ -895,7 +934,6 @@ public class HBaseStoreManager extends DistributedStoreManager implements KeyCol
                     } catch (InterruptedException ie) {
                         throw new TemporaryBackendException(ie);
                     }
-
                     adm.enableTable(tableName);
                 } catch (TableNotFoundException ee) {
                     logger.error("TableNotFoundException", ee);
@@ -917,6 +955,9 @@ public class HBaseStoreManager extends DistributedStoreManager implements KeyCol
 
         if (ttlInSeconds > 0)
             columnDescriptor.setTimeToLive(ttlInSeconds);
+
+        DataBlockEncoding dataBlockEncoding = DataBlockEncoding.valueOf(storageConfig.get(DATA_BLOCK_ENCODING).toUpperCase());
+        columnDescriptor.setDataBlockEncoding(dataBlockEncoding);
     }
 
     /**
@@ -974,6 +1015,8 @@ public class HBaseStoreManager extends DistributedStoreManager implements KeyCol
                 if (mutation.hasAdditions()) {
                     // All the entries (column cells) with the rowkey use this one Put, except the ones with TTL.
                     final Put putColumnsWithoutTtl = putTimestamp != null ? new Put(key, putTimestamp) : new Put(key);
+
+                    putColumnsWithoutTtl.setDurability(Durability.USE_DEFAULT);
                     // At the end of this loop, there will be one Put entry in the commands.getFirst() list that
                     // contains all additions without TTL set, and possible multiple Put entries for columns
                     // that have TTL set.
@@ -1043,11 +1086,14 @@ public class HBaseStoreManager extends DistributedStoreManager implements KeyCol
         }
     }
 
-    private TableName determineTableName(Configuration config) {
-        if ((!config.has(HBASE_TABLE)) && (config.has(GRAPH_NAME))) {
-            return TableName.valueOf(config.get(GRAPH_NAME));
+    private TableName determineTableName(org.janusgraph.diskstorage.configuration.Configuration config) {
+        final String table;
+        if (!config.has(HBASE_TABLE) && config.has(GRAPH_NAME)) {
+            table = config.get(GRAPH_NAME);
+        } else {
+            table = config.get(HBASE_TABLE);
         }
-        return TableName.valueOf(config.get(HBASE_TABLE));
+        return TableName.valueOf(config.get(HBASE_NAMESPACE) + ":" + table);
     }
 
     @VisibleForTesting
