@@ -1462,6 +1462,9 @@ public class SolrIndex implements IndexProvider {
             boolean cont = true;
 
             while (cont) {
+                if (Thread.interrupted()) {
+                    throw new InterruptedException("Awaiting recoveries was interrupted");
+                }
                 boolean sawLiveRecovering = false;
                 zkStateReader.forceUpdateCollection(collection);
                 final ClusterState clusterState = zkStateReader.getClusterState();
