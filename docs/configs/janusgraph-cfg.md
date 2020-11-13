@@ -615,6 +615,7 @@ Configuration options for transaction handling
 | ---- | ---- | ---- | ---- | ---- |
 | tx.log-tx | Whether transaction mutations should be logged to JanusGraph's write-ahead transaction log which can be used for recovery of partially failed transactions | Boolean | false | GLOBAL |
 | tx.max-commit-time | Maximum time (in ms) that a transaction might take to commit against all backends. This is used by the distributed write-ahead log processing to determine when a transaction can be considered failed (i.e. after this time has elapsed).Must be longer than the maximum allowed write time. | Duration | 10000 ms | GLOBAL |
+| tx.tx-rate | Limit transaction rate per second for MR reindex job. | Integer | 0 | MASKABLE |
 
 ### tx.recovery
 Configuration options for transaction recovery processes

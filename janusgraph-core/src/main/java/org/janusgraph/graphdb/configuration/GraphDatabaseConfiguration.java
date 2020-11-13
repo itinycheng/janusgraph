@@ -227,6 +227,10 @@ public class GraphDatabaseConfiguration {
             "Whether the transaction recovery system should print recovered transactions and other activity to standard output",
             ConfigOption.Type.MASKABLE, false);
 
+    public static final ConfigOption<Integer> TX_RATE = new ConfigOption<>(TRANSACTION_NS, "tx-rate",
+        "Limit transaction rate per second for MR reindex job.",
+        ConfigOption.Type.MASKABLE, Integer.class, 0);
+
     // ################ Query Processing #######################
     // ################################################
 

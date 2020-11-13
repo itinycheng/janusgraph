@@ -121,7 +121,18 @@ public class IndexTransaction implements BaseTransaction, LoggableTransaction {
     }
 
     public void restore(Map<String, Map<String,List<IndexEntry>>> documents) throws BackendException {
-        index.restore(documents, keyInformation,indexTx);
+        BackendOperation.execute(new Callable<Boolean>() {
+            @Override
+            public Boolean call() throws Exception {
+                index.restore(documents, keyInformation, indexTx);
+                return true;
+            }
+
+            @Override
+            public String toString() {
+                return "IndexRestore";
+            }
+        }, maxWriteTime);
     }
 
     @Override

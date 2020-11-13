@@ -14,6 +14,10 @@
 
 package org.janusgraph.hadoop.scan;
 
+import static org.janusgraph.graphdb.olap.job.IndexRepairJob.DOCUMENT_UPDATES_COUNT;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BUFFER_SIZE;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.TX_RATE;
+
 import com.google.common.base.Preconditions;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.Mapper;
@@ -28,6 +32,8 @@ import org.janusgraph.diskstorage.keycolumnvalue.scan.ScanJob;
 import org.janusgraph.diskstorage.util.BufferUtil;
 import org.janusgraph.diskstorage.util.EntryArrayList;
 import org.janusgraph.hadoop.config.JanusGraphHadoopConfiguration;
+
+import com.google.common.util.concurrent.RateLimiter;
 import org.janusgraph.hadoop.config.ModifiableHadoopConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +60,9 @@ public class HadoopScanMapper extends Mapper<StaticBuffer, Iterable<Entry>, Null
     private Predicate<StaticBuffer> keyFilter;
     private SliceQuery initialQuery;
     private List<SliceQuery> subsequentQueries;
+    private int batchSize;
+    private int txRate;
+    private RateLimiter rateLimiter;
 
     @Override
     protected void setup(Context context) throws IOException, InterruptedException {
@@ -68,6 +77,13 @@ public class HadoopScanMapper extends Mapper<StaticBuffer, Iterable<Entry>, Null
 
     protected void finishSetup(ModifiableHadoopConfiguration scanConf, Configuration graphConf) {
         jobConf = getJobConfiguration(scanConf);
+        batchSize = graphConf.get(BUFFER_SIZE);
+        txRate = graphConf.get(TX_RATE);
+        if (txRate > 0) {
+            rateLimiter = RateLimiter.create(txRate);
+        } else {
+            rateLimiter = RateLimiter.create(100000);
+        }
         Preconditions.checkNotNull(metrics);
         // Allowed to be null for jobs that specify no configuration and no configuration root
         //Preconditions.checkNotNull(jobConf);
@@ -122,8 +138,14 @@ public class HadoopScanMapper extends Mapper<StaticBuffer, Iterable<Entry>, Null
         for (SliceQuery sq : subsequentQueries) {
             matches.put(sq, findEntriesMatchingQuery(sq, al));
         }
-
         // Process
+        long documentsUpdatesCount = metrics.getCustom(DOCUMENT_UPDATES_COUNT);
+        if (documentsUpdatesCount % batchSize == 0) {
+            rateLimiter.acquire();
+            job.workerIterationEnd(metrics);
+            ModifiableConfiguration janusGraphConfiguration = getJanusGraphConfiguration(context);
+            job.workerIterationStart(jobConf, janusGraphConfiguration, metrics);
+        }
         job.process(key, matches, metrics);
     }
 
