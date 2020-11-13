@@ -1398,6 +1398,7 @@ public class SolrIndex implements IndexProvider {
 
     private UpdateRequest newUpdateRequest() {
         final UpdateRequest req = new UpdateRequest();
+        req.setParam("_version_", "0");
         if(waitSearcher) {
             req.setAction(UpdateRequest.ACTION.COMMIT, true, true);
         }
