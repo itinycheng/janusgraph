@@ -90,8 +90,6 @@ import org.janusgraph.graphdb.query.condition.Or;
 import org.janusgraph.graphdb.query.condition.PredicateCondition;
 import org.janusgraph.graphdb.tinkerpop.optimize.step.Aggregation;
 import org.janusgraph.graphdb.types.ParameterType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -123,6 +121,73 @@ import java.util.stream.StreamSupport;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_MAX_RESULT_SET_SIZE;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_NAME;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_NS;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpEntityEnclosingRequest;
+import org.apache.http.HttpRequestInterceptor;
+import org.apache.http.client.HttpClient;
+import org.apache.http.entity.BufferedHttpEntity;
+import org.apache.http.impl.auth.KerberosScheme;
+import org.apache.lucene.analysis.CachingTokenFilter;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
+import org.apache.solr.client.solrj.SolrClient;
+import org.apache.solr.client.solrj.SolrQuery;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.CloudSolrClient;
+import org.apache.solr.client.solrj.impl.HttpClientUtil;
+import org.apache.solr.client.solrj.impl.HttpSolrClient;
+import org.apache.solr.client.solrj.impl.Krb5HttpClientBuilder;
+import org.apache.solr.client.solrj.impl.LBHttpSolrClient;
+import org.apache.solr.client.solrj.impl.PreemptiveAuth;
+import org.apache.solr.client.solrj.impl.SolrHttpClientBuilder;
+import org.apache.solr.client.solrj.request.CollectionAdminRequest;
+import org.apache.solr.client.solrj.request.UpdateRequest;
+import org.apache.solr.client.solrj.response.CollectionAdminResponse;
+import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.client.solrj.util.ClientUtils;
+import org.apache.solr.common.SolrDocument;
+import org.apache.solr.common.SolrInputDocument;
+import org.apache.solr.common.cloud.ClusterState;
+import org.apache.solr.common.cloud.DocCollection;
+import org.apache.solr.common.cloud.Replica;
+import org.apache.solr.common.cloud.Slice;
+import org.apache.solr.common.cloud.ZkStateReader;
+import org.apache.solr.common.params.CommonParams;
+import org.apache.solr.common.params.ModifiableSolrParams;
+import org.apache.zookeeper.KeeperException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.io.StringReader;
+import java.io.UncheckedIOException;
+import java.lang.reflect.Constructor;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.TimeZone;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * @author Jared Holmberg (jholmberg@bericotechnologies.com), Pavel Yaskevich (pavel@thinkaurelius.com)
@@ -696,11 +761,13 @@ public class SolrIndex implements IndexProvider {
             solrClient.request(newUpdateRequest().add(documents), collectionName);
         } catch (final HttpSolrClient.RemoteSolrException rse) {
             logger.error("Unable to save documents to Solr as one of the shape objects stored were not compatible with Solr.", rse);
-            logger.error("Details in failed document batch: ");
-            for (final SolrInputDocument d : documents) {
-                final Collection<String> fieldNames = d.getFieldNames();
-                for (final String name : fieldNames) {
-                    logger.error(name + ":" + d.getFieldValue(name));
+            if (logger.isDebugEnabled()) {
+                logger.error("Details in failed document batch: ");
+                for (final SolrInputDocument d : documents) {
+                    final Collection<String> fieldNames = d.getFieldNames();
+                    for (final String name : fieldNames) {
+                        logger.debug(name + ":" + d.getFieldValue(name));
+                    }
                 }
             }
 
@@ -1410,7 +1477,7 @@ public class SolrIndex implements IndexProvider {
     }
 
     private static void createCollectionIfNotExists(CloudSolrClient client, Configuration config, String collection)
-            throws IOException, SolrServerException, KeeperException, InterruptedException {
+        throws IOException, SolrServerException, KeeperException, InterruptedException, BackendException {
         if (!checkIfCollectionExists(client, collection)) {
             final Integer numShards = config.get(NUM_SHARDS);
             final Integer maxShardsPerNode = config.get(MAX_SHARDS_PER_NODE);
@@ -1439,9 +1506,9 @@ public class SolrIndex implements IndexProvider {
             } else {
                 throw new SolrServerException(Joiner.on("\n").join(createResponse.getErrorMessages()));
             }
+            waitForRecoveriesToFinish(client, collection);
         }
 
-        waitForRecoveriesToFinish(client, collection);
     }
 
     /**
@@ -1457,8 +1524,10 @@ public class SolrIndex implements IndexProvider {
     /**
      * Wait for all the collection shards to be ready.
      */
-    private static void waitForRecoveriesToFinish(CloudSolrClient server, String collection) throws KeeperException, InterruptedException {
+    private static void waitForRecoveriesToFinish(CloudSolrClient server, String collection) throws KeeperException, InterruptedException, BackendException {
         final ZkStateReader zkStateReader = server.getZkStateReader();
+        Duration maxAwait = Duration.ofMinutes(10);
+        long maxTime = System.currentTimeMillis() + maxAwait.toMillis();
         try {
             boolean cont = true;
 
@@ -1486,10 +1555,14 @@ public class SolrIndex implements IndexProvider {
                     }
                 }
 
-
                 if (!sawLiveRecovering) {
                     cont = false;
                 } else {
+                    if (System.currentTimeMillis() > maxTime) {
+                        throw new TemporaryBackendException(
+                            "Collection '" + collection + "' recovering not finished in " + maxAwait + ". Slices: " + slices + ", clusterState: "
+                            + clusterState);
+                    }
                     Thread.sleep(1000);
                 }
             }
