@@ -32,7 +32,6 @@ import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BaseCloudSolrClient;
-import org.apache.solr.client.solrj.impl.CloudHttp2SolrClient;
 import org.apache.solr.client.solrj.impl.CloudSolrClient;
 import org.apache.solr.client.solrj.impl.HttpClientUtil;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
@@ -247,6 +246,9 @@ public class SolrIndex implements IndexProvider {
             "When mutating - wait for the index to reflect new mutations before returning. This can have a negative impact on performance.",
             ConfigOption.Type.LOCAL, false);
 
+    public static final ConfigOption<Boolean> DISABLE_VERSION = new ConfigOption<>(SOLR_NS, "disable-version",
+        "Disable version",
+        ConfigOption.Type.LOCAL, true);
 
     /** Security Configuration */
 
@@ -278,6 +280,7 @@ public class SolrIndex implements IndexProvider {
     private final boolean kerberosEnabled;
     private final String indexName;
     private final Set<String> initalizedCollections = new HashSet<>();
+    private final boolean disableVersion;
 
     public SolrIndex(final Configuration config) throws BackendException {
         Preconditions.checkArgument(config!=null);
@@ -290,6 +293,7 @@ public class SolrIndex implements IndexProvider {
         batchSize = config.get(INDEX_MAX_RESULT_SET_SIZE);
         ttlField = config.get(TTL_FIELD);
         waitSearcher = config.get(WAIT_SEARCHER);
+        disableVersion = config.get(DISABLE_VERSION);
 
         if (kerberosEnabled) {
             logger.debug("Kerberos is enabled. Configuring SOLR for Kerberos.");
@@ -327,11 +331,10 @@ public class SolrIndex implements IndexProvider {
                 if (config.get(SOLR_USE_HTTP2)) {
                     final CompressCloudHttp2SolrClient.Builder builder =
                         new CompressCloudHttp2SolrClient.Builder(Arrays.asList(zookeeperUrl), chroot)
-                            .withHttpClient(new CompressHttp2SolrClient.Builder()
+                            .withInternalClientBuilder(new CompressHttp2SolrClient.Builder()
                                 .connectionTimeout(config.get(HTTP_CONNECTION_TIMEOUT))
                                 .withGzip(config.get(HTTP_ALLOW_COMPRESSION))
-                                .maxConnectionsPerHost(config.get(HTTP_MAX_CONNECTIONS_PER_HOST))
-                                .build());
+                                .maxConnectionsPerHost(config.get(HTTP_MAX_CONNECTIONS_PER_HOST)));
                     cloudServer = builder.build();
                 } else {
                     final CloudSolrClient.Builder builder =
@@ -1424,7 +1427,9 @@ public class SolrIndex implements IndexProvider {
 
     private UpdateRequest newUpdateRequest() {
         final UpdateRequest req = new UpdateRequest();
-        req.setParam("_version_", "0");
+        if (disableVersion) {
+            req.setParam(CommonParams.VERSION_FIELD, "0");
+        }
         if(waitSearcher) {
             req.setAction(UpdateRequest.ACTION.COMMIT, true, true);
         }

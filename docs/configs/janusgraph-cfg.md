@@ -250,6 +250,7 @@ Solr index configuration
 | ---- | ---- | ---- | ---- | ---- |
 | index.[X].solr.configset | If specified, the same solr configSet can be reused for each new Collection that is created in SolrCloud. | String | (no default value) | MASKABLE |
 | index.[X].solr.create-node-set | Allows defining the nodes to spread the new collection across. The format is a comma-separated list of node_names, such as localhost:8983_solr,localhost:8984_solr,localhost:8985_solr. If not provided, the CREATE operation will create shard-replicas spread across all live Solr nodes. | String[] | (no default value) | FIXED |
+| index.[X].solr.disable-version | Disable version | Boolean | true | LOCAL |
 | index.[X].solr.dyn-fields | Whether to use dynamic fields (which appends the data type to the field name). If dynamic fields is disabled, the user must map field names and define them explicitly in the schema. | Boolean | true | GLOBAL_OFFLINE |
 | index.[X].solr.http-compression | Enable/disable compression on the HTTP connections made to Solr. | Boolean | false | MASKABLE |
 | index.[X].solr.http-connection-timeout | Solr HTTP connection timeout. | Integer | 5000 | MASKABLE |
