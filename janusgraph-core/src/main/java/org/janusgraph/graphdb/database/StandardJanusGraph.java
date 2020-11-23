@@ -834,7 +834,9 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
                      final Collection<InternalRelation> deletedRelations, final StandardJanusGraphTx tx) throws BackendException {
         if (addedRelations.isEmpty() && deletedRelations.isEmpty()) return;
         //1. Finalize transaction
-        log.debug("Saving transaction. Added {}, removed {}", addedRelations.size(), deletedRelations.size());
+        if (log.isDebugEnabled()) {
+            log.debug("Saving transaction. Added {}, removed {}", addedRelations.size(), deletedRelations.size());
+        }
         if (!tx.getConfiguration().hasCommitTime()) tx.getConfiguration().setCommitTime(times.getTime());
         final Instant txTimestamp = tx.getConfiguration().getCommitTime();
         final long transactionId = txCounter.incrementAndGet();

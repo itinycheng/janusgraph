@@ -1636,6 +1636,10 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         }
         try {
             if (hasModifications()) {
+                if (null != config.getGroupName()) {
+                    MetricManager.INSTANCE.getHistogram(config.getGroupName(), "tx", "added-histogram").update(addedRelations.getAll().size());
+                    MetricManager.INSTANCE.getHistogram(config.getGroupName(), "tx", "deleted-histogram").update(deletedRelations.size());
+                }
                 graph.commit(addedRelations.getAll(), deletedRelations.values(), this);
             } else {
                 txHandle.commit();
