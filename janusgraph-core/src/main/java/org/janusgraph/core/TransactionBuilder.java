@@ -139,6 +139,14 @@ public interface TransactionBuilder {
     TransactionBuilder commitTime(Instant instant);
 
     /**
+     * Disable full scan for this transaction. It is suitable when {@link GraphDatabaseConfiguration#FORCE_INDEX_USAGE}
+     * is set to {@code false}.
+     *
+     * @return Object with with disabled scan
+     */
+
+    TransactionBuilder forceIndexUsage();
+    /**
      * Skips usage of JanusGraph database level cache during read operations.
      * <p>
      * Doesn't have any effect if database level cache was disabled via config `cache.db-cache`.

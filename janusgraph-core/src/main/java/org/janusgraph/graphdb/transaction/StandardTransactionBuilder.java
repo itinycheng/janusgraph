@@ -85,7 +85,7 @@ public class StandardTransactionBuilder implements TransactionConfiguration, Tra
 
     private boolean skipDBCacheRead;
 
-    private final boolean forceIndexUsage;
+    private boolean forceIndexUsage;
 
     private final ModifiableConfiguration writableCustomOptions;
 
@@ -234,6 +234,12 @@ public class StandardTransactionBuilder implements TransactionConfiguration, Tra
     @Override
     public void setCommitTime(Instant time) {
         throw new UnsupportedOperationException("Use setCommitTime(long,TimeUnit)");
+    }
+
+    @Override
+    public StandardTransactionBuilder forceIndexUsage() {
+        this.forceIndexUsage = true;
+        return this;
     }
 
     @Override

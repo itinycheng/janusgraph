@@ -5912,6 +5912,19 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         //Graph query with and with-out index support
         assertCount(1, tx.query().has("time", 5).vertices());
         assertCount(1, tx.query().has("age", 6).vertices());
+        clopen();
+
+        // Force index usage per transaction level
+        try (JanusGraphTransaction localTx = graph.buildTransaction().forceIndexUsage().start()) {
+            //Query with-out index support should now throw exception
+            assertCount(1, localTx.query().has("time", 5).vertices());
+            try {
+                assertCount(1, localTx.query().has("age", 6).vertices());
+                fail();
+            } catch (Exception ignored) {
+            }
+            localTx.rollback();
+        }
 
         clopen(option(FORCE_INDEX_USAGE), true);
         //Query with-out index support should now throw exception
