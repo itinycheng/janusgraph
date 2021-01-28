@@ -937,9 +937,12 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
 
         //Determine unique indexes
         final List<IndexLockTuple> uniqueIndexTuples = new ArrayList<>();
-        for (IndexType index : Iterables.filter(getApplicableIndices(vertex, key), i -> i instanceof CompositeIndexType && ((CompositeIndexType)i).getCardinality() == Cardinality.SINGLE)) {
-            IndexRecords matches = IndexRecordUtil.indexMatches(vertex, (CompositeIndexType) index, key, normalizedValue);
-            for (Object[] match : matches.getRecordValues()) uniqueIndexTuples.add(new IndexLockTuple((CompositeIndexType) index,match));
+        if (config.hasVerifyUniqueness() || !config.isSingleThreaded()) {
+            for (IndexType index : Iterables.filter(getApplicableIndices(vertex, key),
+                i -> i instanceof CompositeIndexType && ((CompositeIndexType) i).getCardinality() == Cardinality.SINGLE)) {
+                IndexRecords matches = IndexRecordUtil.indexMatches(vertex, (CompositeIndexType) index, key, normalizedValue);
+                for (Object[] match : matches.getRecordValues()) uniqueIndexTuples.add(new IndexLockTuple((CompositeIndexType) index, match));
+            }
         }
 
         TransactionLock uniqueLock = getUniquenessLock(vertex, (InternalRelationType) key, normalizedValue);
