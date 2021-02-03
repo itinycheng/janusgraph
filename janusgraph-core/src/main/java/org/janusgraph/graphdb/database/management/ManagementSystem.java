@@ -709,6 +709,26 @@ public class ManagementSystem implements JanusGraphManagement {
         return new JanusGraphIndexWrapper(indexVertex.asIndexType());
     }
 
+    public void removeIndexKey(final JanusGraphIndex index, final PropertyKey key) {
+        Preconditions.checkArgument(key != null && index instanceof JanusGraphIndexWrapper
+                                    && !(key instanceof BaseKey), "Need to provide valid index and key");
+        IndexType indexType = ((JanusGraphIndexWrapper) index).getBaseIndex();
+        Preconditions.checkArgument(indexType instanceof MixedIndexType, "Can only delete keys from an external index, not %s", index.name());
+
+        JanusGraphSchemaVertex indexVertex = (JanusGraphSchemaVertex) ((IndexTypeWrapper) indexType).getSchemaBase();
+
+        for (JanusGraphEdge edge : indexVertex.getEdges(TypeDefinitionCategory.INDEX_FIELD, Direction.OUT)) {
+            if (edge.inVertex().equals(key)) {
+                edge.remove();
+                updateSchemaVertex(indexVertex);
+                indexVertex.resetCache();
+                indexType.resetCache();
+                updatedTypes.add(indexVertex);
+                return;
+            }
+        }
+    }
+
     @Override
     public void addIndexKey(final JanusGraphIndex index, final PropertyKey key, Parameter... parameters) {
         Preconditions.checkArgument(index != null && key != null && index instanceof JanusGraphIndexWrapper
