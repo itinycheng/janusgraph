@@ -251,11 +251,33 @@ public class ManagementSystem implements JanusGraphManagement {
 
         //Communicate schema changes
         if (!updatedTypes.isEmpty() || evictGraphFromCache) {
-            managementLogger.sendCacheEviction(updatedTypes, evictGraphFromCache, updatedTypeTriggers, getOpenInstancesInternal());
-            for (JanusGraphSchemaVertex schemaVertex : updatedTypes) {
-                schemaCache.expireSchemaElement(schemaVertex.longId());
-                for (JanusGraphTransaction tx : graph.getOpenTransactions()) {
-                    tx.expireSchemaElement(schemaVertex.longId());
+
+            Set<String> openInstancesInternal = getOpenInstancesInternal();
+            // When single instance and no open tx we can update types synchronously for avoid
+            // long managementLogger update
+            boolean skipManagementLogger = openInstancesInternal.size() == 1 && graph.getOpenTransactions().isEmpty();
+            if (skipManagementLogger) {
+                for (JanusGraphSchemaVertex schemaVertex : updatedTypes) {
+                    schemaCache.expireSchemaElement(schemaVertex.longId());
+                    for (JanusGraphTransaction tx : graph.getOpenTransactions()) {
+                        tx.expireSchemaElement(schemaVertex.longId());
+                    }
+                }
+                for (Callable<Boolean> trigger : updatedTypeTriggers) {
+                    try {
+                        final boolean success = trigger.call();
+                        assert success;
+                    } catch (Throwable e) {
+                        LOGGER.error("Could not execute trigger [" + trigger.toString() + "]", e);
+                    }
+                }
+            } else {
+                managementLogger.sendCacheEviction(updatedTypes, evictGraphFromCache, updatedTypeTriggers, openInstancesInternal);
+                for (JanusGraphSchemaVertex schemaVertex : updatedTypes) {
+                    schemaCache.expireSchemaElement(schemaVertex.longId());
+                    for (JanusGraphTransaction tx : graph.getOpenTransactions()) {
+                        tx.expireSchemaElement(schemaVertex.longId());
+                    }
                 }
             }
         }
