@@ -53,7 +53,6 @@ public class JanusGraphManager implements GraphManager {
 
     private final Map<String, Graph> graphs = new ConcurrentHashMap<>();
     private final Map<String, TraversalSource> traversalSources = new ConcurrentHashMap<>();
-    private final Object instantiateGraphLock = new Object();
     private GremlinExecutor gremlinExecutor = null;
 
     private static JanusGraphManager instance = null;
@@ -228,21 +227,13 @@ public class JanusGraphManager implements GraphManager {
 
     @Override
     public Graph openGraph(String gName, Function<String, Graph> thunk) {
-        Graph graph = graphs.get(gName);
-        if (graph != null && !((StandardJanusGraph) graph).isClosed()) {
-            updateTraversalSource(gName, graph);
-            return graph;
-        } else {
-            synchronized (instantiateGraphLock) {
-                graph = graphs.get(gName);
-                if (graph == null || ((StandardJanusGraph) graph).isClosed()) {
-                    graph = thunk.apply(gName);
-                    graphs.put(gName, graph);
-                }
+        return graphs.compute(gName, (name, g) -> {
+            if (g == null || ((StandardJanusGraph) g).isClosed()) {
+                g = thunk.apply(gName);
             }
-            updateTraversalSource(gName, graph);
-            return graph;
-        }
+            updateTraversalSource(gName, g);
+            return g;
+        });
     }
 
     @Override
