@@ -1404,7 +1404,7 @@ public class GraphDatabaseConfiguration {
 
     public String getBackendDescription() {
         String className = configuration.get(STORAGE_BACKEND);
-        if (className.equalsIgnoreCase("berkeleyje")) {
+        if (configuration.has(STORAGE_DIRECTORY)) {
             return className + ":" + configuration.get(STORAGE_DIRECTORY);
         } else {
             return className + ":" + Arrays.toString(configuration.get(STORAGE_HOSTS));
