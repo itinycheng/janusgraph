@@ -194,7 +194,7 @@ public class LuceneIndex implements IndexProvider {
         log.debug("Configured Lucene to use base directory [{}]", basePath);
     }
 
-    private Directory getStoreDirectory(String store) throws BackendException {
+    private synchronized Directory getStoreDirectory(String store) throws BackendException {
         Preconditions.checkArgument(StringUtils.isAlphanumeric(store), "Invalid store name: %s", store);
         final String dir = basePath + File.separator + store;
         try {
