@@ -224,7 +224,7 @@ public abstract class BaseVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q>
 	 */
 
     protected final boolean isVertexLabelType() {
-        return types.length == 1 && schemaInspector.getRelationType(types[0]) == BaseLabel.VertexLabelEdge && dir == Direction.OUT;
+        return types.length == 1 && types[0].equalsIgnoreCase(BaseLabel.VertexLabelEdge.name()) && dir == Direction.OUT;
     }
 
     protected final boolean hasTypes() {
