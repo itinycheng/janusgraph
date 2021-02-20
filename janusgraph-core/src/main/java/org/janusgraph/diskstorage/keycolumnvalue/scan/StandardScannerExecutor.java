@@ -129,6 +129,7 @@ class StandardScannerExecutor extends AbstractFuture<ScanMetrics> implements Sca
         Processor[] processors = new Processor[numProcessors];
         for (int i=0;i<processors.length;i++) {
             processors[i]= new Processor(job.clone(),processorQueue);
+            processors[i].setName("scanner-processor-" + i);
             processors[i].start();
         }
 
@@ -265,7 +266,7 @@ class StandardScannerExecutor extends AbstractFuture<ScanMetrics> implements Sca
             } catch (InterruptedException e) {
                 log.error("Processing thread interrupted while waiting on queue or processing data", e);
             } catch (Throwable e) {
-                log.error("Unexpected error processing data",e);
+                log.error("Unexpected error processing data", e);
             } finally {
                 job.workerIterationEnd(metrics);
             }
