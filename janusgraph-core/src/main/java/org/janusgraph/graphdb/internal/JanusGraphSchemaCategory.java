@@ -19,6 +19,9 @@ import org.janusgraph.graphdb.types.TypeDefinitionCategory;
 import org.janusgraph.graphdb.types.TypeDefinitionMap;
 import org.janusgraph.graphdb.types.TypeUtil;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
  */
@@ -27,6 +30,7 @@ public enum JanusGraphSchemaCategory {
 
     EDGELABEL, PROPERTYKEY, VERTEXLABEL, GRAPHINDEX, TYPE_MODIFIER;
 
+    Map<String, String> cache = new ConcurrentHashMap<>();
 
     public boolean isRelationType() {
         return this== EDGELABEL || this== PROPERTYKEY;
@@ -46,23 +50,31 @@ public enum JanusGraphSchemaCategory {
     }
 
     public String getSchemaName(String name) {
-        Preconditions.checkState(hasName());
-        TypeUtil.checkTypeName(this,name);
-        String prefix;
-        switch(this) {
-            case EDGELABEL:
-            case PROPERTYKEY:
-                prefix = "rt";
-                break;
-            case GRAPHINDEX:
-                prefix = "gi";
-                break;
-            case VERTEXLABEL:
-                prefix = "vl";
-                break;
-            default: throw new AssertionError();
+        try {
+            return cache.computeIfAbsent(name, key -> {
+                Preconditions.checkState(hasName());
+                TypeUtil.checkTypeName(this, name);
+                String prefix;
+                switch (this) {
+                    case EDGELABEL:
+                    case PROPERTYKEY:
+                        prefix = "rt";
+                        break;
+                    case GRAPHINDEX:
+                        prefix = "gi";
+                        break;
+                    case VERTEXLABEL:
+                        prefix = "vl";
+                        break;
+                    default:
+                        throw new AssertionError();
+                }
+                return Token.getSeparatedName(prefix, name);
+            });
+        } catch (NullPointerException e) {
+            TypeUtil.checkTypeName(this, name);
+            throw  e;
         }
-        return Token.getSeparatedName(prefix,name);
     }
 
     public static String getRelationTypeName(String name) {
