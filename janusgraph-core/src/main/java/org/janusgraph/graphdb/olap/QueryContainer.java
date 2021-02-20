@@ -22,6 +22,7 @@ import org.apache.tinkerpop.gremlin.structure.Direction;
 import org.janusgraph.core.JanusGraphTransaction;
 import org.janusgraph.core.RelationType;
 import org.janusgraph.diskstorage.keycolumnvalue.SliceQuery;
+import org.janusgraph.graphdb.database.idhandling.IDHandler;
 import org.janusgraph.graphdb.internal.RelationCategory;
 import org.janusgraph.graphdb.query.BackendQueryHolder;
 import org.janusgraph.graphdb.query.JanusGraphPredicate;
@@ -30,6 +31,7 @@ import org.janusgraph.graphdb.query.vertex.BasicVertexCentricQueryBuilder;
 import org.janusgraph.graphdb.transaction.StandardJanusGraphTx;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -134,6 +136,18 @@ public class QueryContainer {
         @Override
         protected QueryBuilder getThis() {
             return this;
+        }
+
+        public void fullQuery() {
+            SliceQuery fullQuery = new SliceQuery(
+                IDHandler.getBounds(RelationCategory.RELATION, true)[0],
+                IDHandler.getBounds(RelationCategory.RELATION,false)[1]);
+            Query q = new Query(Collections.singletonList(fullQuery), RelationCategory.RELATION);
+            synchronized (queries) {
+                Preconditions.checkArgument(!queries.contains(q), "Query has already been added: %s", q);
+                queries.add(q);
+                inverseQueries.put(fullQuery, q);
+            }
         }
 
         public void edges() {
