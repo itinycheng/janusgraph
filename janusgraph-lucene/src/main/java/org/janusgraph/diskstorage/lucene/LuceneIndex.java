@@ -277,8 +277,8 @@ public class LuceneIndex implements IndexProvider {
         writerLock.lock();
         try {
             Preconditions.checkArgument(writerLock.isHeldByCurrentThread());
-            IndexWriter writer = writers.get(store);
-            if (writer != null){
+            IndexWriter writer = writers.remove(store);
+            if (writer != null) {
                 writer.close();
             }
             File dir = new File(basePath + File.separator + store);
