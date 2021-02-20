@@ -215,7 +215,7 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
                 this.backend.getIndexInformation(), storeFeatures.isDistributed() && storeFeatures.isKeyOrdered());
         this.edgeSerializer = new EdgeSerializer(this.serializer);
         this.vertexExistenceQuery = edgeSerializer.getQuery(BaseKey.VertexExists, Direction.OUT, new EdgeSerializer.TypedInterval[0]).setLimit(1);
-        this.queryCache = new RelationQueryCache(this.edgeSerializer);
+        this.queryCache = new RelationQueryCache(this.edgeSerializer, 10_000);
         this.schemaCache = configuration.getTypeCache(typeCacheRetrieval);
         this.times = configuration.getTimestampProvider();
         this.indexSelector = getConfiguration().getIndexSelectionStrategy();
@@ -416,9 +416,9 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
     }
 
     //TODO: premature optimization, re-evaluate later
-//    public RelationQueryCache getQueryCache() {
-//        return queryCache;
-//    }
+   public RelationQueryCache getQueryCache() {
+       return queryCache;
+   }
 
     public SchemaCache getSchemaCache() {
         return schemaCache;

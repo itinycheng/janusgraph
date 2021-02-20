@@ -24,7 +24,7 @@ Configuration options that modify JanusGraph's caching behavior
 | cache.db-cache-time | Default expiration time, in milliseconds, for entries in the database-level cache. Entries are evicted when they reach this age even if the cache has room to spare. Set to 0 to disable expiration (cache entries live forever or until memory pressure triggers eviction when set to 0). | Long | 10000 | MASKABLE |
 | cache.tx-cache-size | Maximum size of the transaction-level cache of recently-used vertices. | Integer | 20000 | MASKABLE |
 | cache.tx-dirty-size | Initial size of the transaction-level cache of uncommitted dirty vertices. This is a performance hint for write-heavy, performance-sensitive transactional workloads. If set, it should roughly match the median vertices modified per transaction. | Integer | (no default value) | MASKABLE |
-| cache.tx-query-cache | Use cache for edge query | Boolean | false | MASKABLE |
+| cache.tx-query-cache | Use cache for query | Boolean | false | MASKABLE |
 
 ### cluster
 Configuration options for multi-machine deployments

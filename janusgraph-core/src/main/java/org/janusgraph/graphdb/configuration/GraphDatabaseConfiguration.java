@@ -428,6 +428,10 @@ public class GraphDatabaseConfiguration {
           "If set, it should roughly match the median vertices modified per transaction.",
           ConfigOption.Type.MASKABLE, Integer.class);
 
+    public static final ConfigOption<Boolean> TX_QUERY_CACHE = new ConfigOption<>(CACHE_NS, "tx-query-cache",
+        "Use cache for query",
+        ConfigOption.Type.MASKABLE, Boolean.class, false);
+
     /**
      * The default value of {@link #TX_DIRTY_SIZE} when batch loading is disabled.
      * This value is only considered if the user does not specify a value for

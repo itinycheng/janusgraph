@@ -14,6 +14,7 @@
 
 package org.janusgraph.graphdb.database;
 
+import com.google.common.base.Preconditions;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.apache.tinkerpop.gremlin.structure.Direction;
@@ -47,6 +48,10 @@ public class RelationQueryCache implements AutoCloseable {
         }
     }
 
+    public void expireQueryForType(InternalRelationType type) {
+
+    }
+
     public SliceQuery getQuery(RelationCategory type) {
         return relationTypes.get(type);
     }
@@ -54,6 +59,7 @@ public class RelationQueryCache implements AutoCloseable {
     public SliceQuery getQuery(final InternalRelationType type, Direction dir) {
         CacheEntry ce = cache.get(type.longId(), key -> new CacheEntry(edgeSerializer,type));
         assert ce!=null;
+        Preconditions.checkArgument(type.isUnidirected(Direction.BOTH) || type.isUnidirected(dir), "Type is %s dir %s", type, dir);
         return ce.get(dir);
     }
 
@@ -76,10 +82,15 @@ public class RelationQueryCache implements AutoCloseable {
             } else {
                 out = edgeSerializer.getQuery(t,Direction.OUT,
                             new EdgeSerializer.TypedInterval[t.getSortKey().length]);
-                in = edgeSerializer.getQuery(t,Direction.IN,
-                        new EdgeSerializer.TypedInterval[t.getSortKey().length]);
-                both = edgeSerializer.getQuery(t,Direction.BOTH,
-                        new EdgeSerializer.TypedInterval[t.getSortKey().length]);
+
+                if (t.isUnidirected(Direction.BOTH) || t.isUnidirected(Direction.IN)) {
+                    in = edgeSerializer.getQuery(t, Direction.IN, new EdgeSerializer.TypedInterval[t.getSortKey().length]);
+                    both = edgeSerializer.getQuery(t,Direction.BOTH, new EdgeSerializer.TypedInterval[t.getSortKey().length]);
+                } else {
+                    in = null;
+                    both = null;
+                }
+
             }
         }
 

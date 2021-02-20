@@ -14,6 +14,8 @@
 
 package org.janusgraph.graphdb.query.vertex;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.TX_QUERY_CACHE;
+
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -493,20 +495,26 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
         EdgeSerializer serializer = tx.getEdgeSerializer();
         List<BackendQueryHolder<SliceQuery>> queries;
         if (!hasTypes()) {
-            final BackendQueryHolder<SliceQuery> query= new BackendQueryHolder<>(
-                serializer.getQuery(returnType, querySystem),
-                (adjacentVertex == null && dir == Direction.BOTH || returnType == RelationCategory.PROPERTY && dir == Direction.OUT)
-                        && !conditions.hasChildren(),
-                orders.isEmpty());
             if (sliceLimit!=Query.NO_LIMIT && sliceLimit<Integer.MAX_VALUE/3) {
                 //If only one direction is queried, ask for twice the limit from backend since approximately
                 //half will be filtered
                 if (dir != Direction.BOTH
-                        && (returnType == RelationCategory.EDGE || returnType == RelationCategory.RELATION)) {
+                    && (returnType == RelationCategory.EDGE || returnType == RelationCategory.RELATION)) {
                     sliceLimit *= 2;
                 }
             }
-            query.getBackendQuery().setLimit(computeLimit(conditions.size(),sliceLimit));
+            int limit = computeLimit(conditions.size(),sliceLimit);
+            SliceQuery noTypeQuery;
+            if (!querySystem && tx.getConfiguration().getCustomOption(TX_QUERY_CACHE)) {
+                noTypeQuery = tx.getGraph().getQueryCache().getQuery(returnType).updateLimit(limit);
+            } else {
+                noTypeQuery = serializer.getQuery(returnType, querySystem).setLimit(limit);
+            }
+            final BackendQueryHolder<SliceQuery> query= new BackendQueryHolder<>(
+                noTypeQuery,
+                (adjacentVertex == null && dir == Direction.BOTH || returnType == RelationCategory.PROPERTY && dir == Direction.OUT)
+                        && !conditions.hasChildren(),
+                orders.isEmpty());
             queries = ImmutableList.of(query);
             conditions.add(returnType);
             conditions.add(new VisibilityFilterCondition<>(
@@ -560,8 +568,12 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
                         && orders.isEmpty()) {
                     //TODO: This if-condition is a little too restrictive - we also want to include those cases where
                     //there ARE intervalConstraints or orders but those cannot be covered by any sort-keys
-                    SliceQuery q = serializer.getQuery(type, typeDir, null);
-                    q.setLimit(sliceLimit);
+                    SliceQuery q;
+                    if (tx.getConfiguration().getCustomOption(TX_QUERY_CACHE)) {
+                        q = tx.getGraph().getQueryCache().getQuery(type, typeDir).updateLimit(sliceLimit);
+                    } else {
+                        q = serializer.getQuery(type, typeDir, null).setLimit(sliceLimit);
+                    }
                     queries.add(new BackendQueryHolder<>(q, isIntervalFittedConditions, true));
                 } else {
                     //Optimize for each direction independently
@@ -677,7 +689,12 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
             if (!lastInterval.interval.isPoints() && lastInterval.interval.getEnd()==null) isFitted=false;
         }
         EdgeSerializer serializer = tx.getEdgeSerializer();
-        SliceQuery q = serializer.getQuery(bestCandidate, direction, sortKeyConstraints);
+        SliceQuery q;
+        if ((sortKeyConstraints == null || sortKeyConstraints.length == 0) && tx.getConfiguration().getCustomOption(TX_QUERY_CACHE)) {
+            q = tx.getGraph().getQueryCache().getQuery(bestCandidate, direction);
+        } else {
+            q = serializer.getQuery(bestCandidate, direction, sortKeyConstraints);
+        }
         q.setLimit(computeLimit(intervalConstraints.size()-position, sliceLimit));
         queries.add(new BackendQueryHolder<>(q, isFitted, bestCandidateSupportsOrder));
     }
