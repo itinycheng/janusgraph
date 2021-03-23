@@ -22,6 +22,8 @@ import org.janusgraph.diskstorage.util.time.TimestampProvider;
 import org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration;
 
 import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
@@ -33,6 +35,7 @@ public class StandardBaseTransactionConfig implements BaseTransactionConfig {
     private final TimestampProvider times;
     private final String groupName;
     private final Configuration customOptions;
+    private final Map<ConfigOption, Object> customOptionsCache = new ConcurrentHashMap<>();
 
     private StandardBaseTransactionConfig(String groupName,
                                           TimestampProvider times,
@@ -83,7 +86,7 @@ public class StandardBaseTransactionConfig implements BaseTransactionConfig {
 
     @Override
     public <V> V getCustomOption(ConfigOption<V> opt) {
-        return customOptions.get(opt);
+        return (V) customOptionsCache.computeIfAbsent(opt, k -> customOptions.get(opt));
     }
 
     @Override
