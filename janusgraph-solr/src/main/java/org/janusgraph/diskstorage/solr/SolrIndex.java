@@ -90,78 +90,10 @@ import org.janusgraph.graphdb.query.condition.Or;
 import org.janusgraph.graphdb.query.condition.PredicateCondition;
 import org.janusgraph.graphdb.tinkerpop.optimize.step.Aggregation;
 import org.janusgraph.graphdb.types.ParameterType;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.lang.reflect.Constructor;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.time.Instant;
-import java.util.AbstractMap.SimpleEntry;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.TimeZone;
-import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_MAX_RESULT_SET_SIZE;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_NAME;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_NS;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpEntityEnclosingRequest;
-import org.apache.http.HttpRequestInterceptor;
-import org.apache.http.client.HttpClient;
-import org.apache.http.entity.BufferedHttpEntity;
-import org.apache.http.impl.auth.KerberosScheme;
-import org.apache.lucene.analysis.CachingTokenFilter;
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
-import org.apache.solr.client.solrj.SolrClient;
-import org.apache.solr.client.solrj.SolrQuery;
-import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.impl.CloudSolrClient;
-import org.apache.solr.client.solrj.impl.HttpClientUtil;
-import org.apache.solr.client.solrj.impl.HttpSolrClient;
-import org.apache.solr.client.solrj.impl.Krb5HttpClientBuilder;
-import org.apache.solr.client.solrj.impl.LBHttpSolrClient;
-import org.apache.solr.client.solrj.impl.PreemptiveAuth;
-import org.apache.solr.client.solrj.impl.SolrHttpClientBuilder;
-import org.apache.solr.client.solrj.request.CollectionAdminRequest;
-import org.apache.solr.client.solrj.request.UpdateRequest;
-import org.apache.solr.client.solrj.response.CollectionAdminResponse;
-import org.apache.solr.client.solrj.response.QueryResponse;
-import org.apache.solr.client.solrj.util.ClientUtils;
-import org.apache.solr.common.SolrDocument;
-import org.apache.solr.common.SolrInputDocument;
-import org.apache.solr.common.cloud.ClusterState;
-import org.apache.solr.common.cloud.DocCollection;
-import org.apache.solr.common.cloud.Replica;
-import org.apache.solr.common.cloud.Slice;
-import org.apache.solr.common.cloud.ZkStateReader;
-import org.apache.solr.common.params.CommonParams;
-import org.apache.solr.common.params.ModifiableSolrParams;
-import org.apache.zookeeper.KeeperException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.text.DateFormat;
@@ -188,6 +120,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_MAX_RESULT_SET_SIZE;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_NAME;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_NS;
 
 /**
  * @author Jared Holmberg (jholmberg@bericotechnologies.com), Pavel Yaskevich (pavel@thinkaurelius.com)
@@ -1281,10 +1217,11 @@ public class SolrIndex implements IndexProvider {
             final ClusterState clusterState = zkStateReader.getClusterState();
             for (final String collection : clusterState.getCollectionsMap().keySet()) {
                 logger.debug("Clearing collection [{}] in Solr",collection);
-                // Collection is not dropped because it may have been created externally
-                final UpdateRequest deleteAll = newUpdateRequest();
-                deleteAll.deleteByQuery("*:*");
-                solrClient.request(deleteAll, collection);
+                if (!collection.startsWith(indexName)) {
+                    continue;
+                }
+                final CollectionAdminRequest.Delete request = CollectionAdminRequest.deleteCollection(collection);
+                solrClient.request(request, collection);
             }
 
         } catch (final SolrServerException e) {
@@ -1421,7 +1358,7 @@ public class SolrIndex implements IndexProvider {
             zkStateReader.forciblyRefreshAllClusterStateSlow();
             final ClusterState clusterState = zkStateReader.getClusterState();
             final Map<String, DocCollection> collections = clusterState.getCollectionsMap();
-            return collections != null && !collections.isEmpty();
+            return collections != null && collections.keySet().stream().anyMatch(name -> name.startsWith(indexName));
         } catch (KeeperException | InterruptedException e) {
             throw new PermanentBackendException("Unable to check if index exists", e);
         }

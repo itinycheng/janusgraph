@@ -26,6 +26,7 @@ import java.io.File;
 import java.io.IOException;
 
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_BACKEND;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_NAME;
 
 public class JanusGraphSolrContainer extends SolrContainer {
     private static final String DEFAULT_SOLR_VERSION = "8.11.1";
@@ -77,7 +78,7 @@ public class JanusGraphSolrContainer extends SolrContainer {
             String cmd = "/opt/solr/server/scripts/cloud-scripts/zkcli.sh -zkhost "
                 + getZookeeperUrl(true)
                 + " -cmd upconfig -confdir /opt/solr/mydata -confname "
-                + s1;
+                + INDEX_NAME.getDefaultValue() + "_" + s1;
             try {
                 execInContainer(cmd.split("[\\s]+"));
             } catch (IOException | InterruptedException e) {
@@ -106,6 +107,7 @@ public class JanusGraphSolrContainer extends SolrContainer {
             config.set(SolrIndex.HTTP_URLS, new String[]{"http://" + getHost() + ":" + getSolrPort() + "/solr"}, indexBackend);
             config.set(SolrIndex.WAIT_SEARCHER, true, indexBackend);
             config.set(GraphDatabaseConfiguration.INDEX_MAX_RESULT_SET_SIZE, 3, indexBackend);
+            config.set(SolrIndex.LAZY_COLLECTION, false, indexBackend);
         }
         return config;
     }
