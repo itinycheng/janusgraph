@@ -59,7 +59,7 @@ public class BackendOperation {
     public static <V> V executeDirect(Callable<V> exe, Duration totalWaitTime) throws BackendException {
         Preconditions.checkArgument(!totalWaitTime.isZero(),"Need to specify a positive waitTime: %s",totalWaitTime);
         long maxTime = System.currentTimeMillis()+totalWaitTime.toMillis();
-        Duration waitTime = pertubTime(BASE_REATTEMPT_TIME);
+        Duration waitTime = null;
         BackendException lastException;
         while (true) {
             try {
@@ -71,7 +71,7 @@ public class BackendOperation {
                 do {
                     if (ex instanceof BackendException) storeEx = (BackendException)ex;
                 } while ((ex=ex.getCause())!=null);
-                if (storeEx!=null && storeEx instanceof TemporaryBackendException) {
+                if (storeEx instanceof TemporaryBackendException) {
                     lastException = storeEx;
                 } else if (e instanceof BackendException) {
                     throw (BackendException)e;
@@ -79,8 +79,10 @@ public class BackendOperation {
                     throw new PermanentBackendException("Permanent exception while executing backend operation "+exe.toString(),e);
                 }
             }
+            if (waitTime == null) {
+                waitTime = pertubTime(BASE_REATTEMPT_TIME);
+            }
             //Wait and retry
-            assert lastException!=null;
             if (System.currentTimeMillis()+waitTime.toMillis()<maxTime) {
                 log.info("Temporary exception during backend operation ["+exe.toString()+"]. Attempting backoff retry.",lastException);
                 try {

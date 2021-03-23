@@ -72,7 +72,7 @@ public abstract class BaseVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q>
     /**
      * The order in which the relations should be returned. None by default.
      */
-    protected final OrderList orders = new OrderList();
+    protected OrderList orders = OrderList.NO_ORDER;
     /**
      * The limit of this query. No limit by default.
      */
@@ -211,6 +211,9 @@ public abstract class BaseVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q>
         Preconditions.checkArgument(Comparable.class.isAssignableFrom(key.dataType()),
                 "Can only order on keys with comparable data type. [%s] has datatype [%s]", key.name(), key.dataType());
         Preconditions.checkArgument(!(key instanceof SystemRelationType), "Cannot use system types in ordering: %s", key);
+        if (orders == OrderList.NO_ORDER) {
+            orders = new OrderList();
+        }
         Preconditions.checkArgument(!orders.containsKey(key));
         Preconditions.checkArgument(orders.isEmpty(), "Only a single sort order is supported on vertex queries");
         orders.add(key, Order.convert(order));
