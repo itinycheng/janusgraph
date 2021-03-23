@@ -14,7 +14,12 @@
 
 package org.janusgraph.graphdb.types.vertices;
 
+import com.google.common.base.Function;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+
+import javax.annotation.Nullable;
+
 import org.apache.tinkerpop.gremlin.structure.Direction;
 import org.janusgraph.core.Multiplicity;
 import org.janusgraph.core.schema.ConsistencyModifier;
@@ -94,13 +99,15 @@ public abstract class RelationTypeVertex extends JanusGraphSchemaVertex implemen
 
     @Override
     public Iterable<InternalRelationType> getRelationIndexes() {
-        return Stream.concat(
-            Stream.of(this),
-            getRelated(TypeDefinitionCategory.RELATIONTYPE_INDEX, Direction.OUT).stream()
-                .map(entry -> {
+        return Iterables.concat(ImmutableList.of(this),
+            Iterables.transform(getRelated(TypeDefinitionCategory.RELATIONTYPE_INDEX, Direction.OUT), new Function<Entry, InternalRelationType>() {
+                @Nullable
+                @Override
+                public InternalRelationType apply(@Nullable Entry entry) {
                     assert entry.getSchemaType() instanceof InternalRelationType;
                     return (InternalRelationType) entry.getSchemaType();
-                }))::iterator;
+                }
+            }));
     }
 
     @Override
