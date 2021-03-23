@@ -47,6 +47,24 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
+import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalInterruptedException;
+
+import com.google.common.base.Preconditions;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
+
 /**
  * Bundles all storage/index transactions and provides a proxy for some of their
  * methods for convenience. Also increases robustness of read call by attempting
@@ -397,6 +415,28 @@ public class BackendTransaction implements LoggableTransaction {
             @Override
             public String toString() {
                 return "EdgeStoreKeys";
+            }
+        });
+    }
+
+    public List<EntryList> multiIndexQuery(final List<KeySliceQuery> queries) {
+        List<StaticBuffer> keys = new ArrayList<>(queries.size());
+        for (KeySliceQuery query : queries) {
+            keys.add(query.getKey());
+        }
+        SliceQuery query = new SliceQuery(BufferUtil.zeroBuffer(1), BufferUtil.oneBuffer(1));
+        return executeRead(new Callable<List<EntryList>>() {
+            @Override
+            public List<EntryList> call() throws Exception {
+                Map<StaticBuffer, EntryList> entries =
+                    cacheEnabled ? indexStore.getSlice(keys, query, storeTx) :
+                        indexStore.getSliceNoCache(keys, query, storeTx);
+                return new ArrayList<>(entries.values());
+            }
+
+            @Override
+            public String toString() {
+                return "VertexMultiIndexQuery";
             }
         });
     }
