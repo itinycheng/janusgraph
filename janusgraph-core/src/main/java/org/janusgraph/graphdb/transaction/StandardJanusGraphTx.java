@@ -14,6 +14,9 @@
 
 package org.janusgraph.graphdb.transaction;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BASIC_METRICS;
+
+import com.carrotsearch.hppc.LongArrayList;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -274,6 +277,8 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
     private final VertexConstructor externalVertexRetriever;
     private final VertexConstructor internalVertexRetriever;
 
+    private final boolean metricsEnabled;
+
     public StandardJanusGraphTx(StandardJanusGraph graph, TransactionConfiguration config) {
         Preconditions.checkNotNull(graph);
         Preconditions.checkArgument(graph.isOpen());
@@ -364,7 +369,8 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         deletedRelations = EMPTY_DELETED_RELATIONS;
 
         this.isOpen = true;
-        if (null != config.getGroupName()) {
+        this.metricsEnabled = null != config.getGroupName() && graph.getConfiguration().getConfiguration().get(BASIC_METRICS);
+        if (metricsEnabled) {
             MetricManager.INSTANCE.getCounter(config.getGroupName(), "tx", "begin").inc();
             elementProcessor = new MetricsQueryExecutor<>(config.getGroupName(), "graph", elementProcessorImpl);
             edgeProcessor    = new MetricsQueryExecutor<>(config.getGroupName(), "vertex", edgeProcessorImpl);
@@ -491,7 +497,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
     @Override
     public JanusGraphVertex getVertex(Object vertexId) {
         verifyOpen();
-        if (null != config.getGroupName()) {
+        if (metricsEnabled) {
             MetricManager.INSTANCE.getCounter(config.getGroupName(), "db", "getVertexByID").inc();
         }
         if (!isValidVertexId(vertexId)) return null;
@@ -512,7 +518,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         verifyOpen();
         if (ids==null || ids.length==0) return (Iterable)getInternalVertices();
 
-        if (null != config.getGroupName()) {
+        if (metricsEnabled) {
             MetricManager.INSTANCE.getCounter(config.getGroupName(), "db", "getVerticesByID").inc();
         }
         final List<JanusGraphVertex> result = new ArrayList<>(ids.length);
@@ -1015,7 +1021,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         verifyOpen();
         if (ids==null || ids.length==0) return new VertexCentricEdgeIterable(getInternalVertices(),RelationCategory.EDGE);
 
-        if (null != config.getGroupName()) {
+        if (metricsEnabled) {
             MetricManager.INSTANCE.getCounter(config.getGroupName(), "db", "getEdgesByID").inc();
         }
         List<JanusGraphEdge> result = new ArrayList<>(ids.length);
@@ -1631,12 +1637,12 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
     public synchronized void commit() {
         Preconditions.checkArgument(isOpen(), "The transaction has already been closed");
         boolean success = false;
-        if (null != config.getGroupName()) {
+        if (metricsEnabled) {
             MetricManager.INSTANCE.getCounter(config.getGroupName(), "tx", "commit").inc();
         }
         try {
             if (hasModifications()) {
-                if (null != config.getGroupName()) {
+                if (metricsEnabled) {
                     MetricManager.INSTANCE.getHistogram(config.getGroupName(), "tx", "added-histogram").update(addedRelations.getAll().size());
                     MetricManager.INSTANCE.getHistogram(config.getGroupName(), "tx", "deleted-histogram").update(deletedRelations.size());
                 }
@@ -1654,7 +1660,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
             throw new JanusGraphException("Could not commit transaction due to exception during persistence", e);
         } finally {
             releaseTransaction();
-            if (null != config.getGroupName() && !success) {
+            if (metricsEnabled && !success) {
                 MetricManager.INSTANCE.getCounter(config.getGroupName(), "tx", "commit.exceptions").inc();
             }
         }
@@ -1664,7 +1670,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
     public synchronized void rollback() {
         Preconditions.checkArgument(isOpen(), "The transaction has already been closed");
         boolean success = false;
-        if (null != config.getGroupName()) {
+        if (metricsEnabled) {
             MetricManager.INSTANCE.getCounter(config.getGroupName(), "tx", "rollback").inc();
         }
         try {
@@ -1674,7 +1680,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
             throw new JanusGraphException("Could not rollback transaction due to exception", e);
         } finally {
             releaseTransaction();
-            if (null != config.getGroupName() && !success) {
+            if (metricsEnabled && !success) {
                 MetricManager.INSTANCE.getCounter(config.getGroupName(), "tx", "rollback.exceptions").inc();
             }
         }

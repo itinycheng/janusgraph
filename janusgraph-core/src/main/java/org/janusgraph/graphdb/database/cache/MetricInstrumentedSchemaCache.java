@@ -14,12 +14,15 @@
 
 package org.janusgraph.graphdb.database.cache;
 
+import com.codahale.metrics.MetricRegistry;
 import org.apache.tinkerpop.gremlin.structure.Direction;
 import org.janusgraph.diskstorage.EntryList;
-import org.janusgraph.diskstorage.util.CacheMetricsAction;
-import org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration;
 import org.janusgraph.graphdb.types.system.BaseRelationType;
 import org.janusgraph.util.stats.MetricManager;
+
+import static org.janusgraph.diskstorage.util.CacheMetricsAction.MISS;
+import static org.janusgraph.diskstorage.util.CacheMetricsAction.RETRIEVAL;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.METRICS_SYSTEM_PREFIX_DEFAULT;
 
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
@@ -33,35 +36,37 @@ public class MetricInstrumentedSchemaCache implements SchemaCache {
 
     private final SchemaCache cache;
 
+    private final String typeMiss = MetricRegistry.name(METRICS_SYSTEM_PREFIX_DEFAULT, METRICS_NAME, METRICS_TYPENAME, MISS.getName());
+    private final String typeRetrieval = MetricRegistry.name(METRICS_SYSTEM_PREFIX_DEFAULT, METRICS_NAME, METRICS_TYPENAME, RETRIEVAL.getName());
+    private final String relationMiss = MetricRegistry.name(METRICS_SYSTEM_PREFIX_DEFAULT, METRICS_NAME, METRICS_RELATIONS, MISS.getName());
+    private final String relationRetrieval = MetricRegistry.name(METRICS_SYSTEM_PREFIX_DEFAULT, METRICS_NAME, METRICS_RELATIONS, RETRIEVAL.getName());
+
     public MetricInstrumentedSchemaCache(final StoreRetrieval retriever) {
         cache = new StandardSchemaCache(new StoreRetrieval() {
+
             @Override
             public Long retrieveSchemaByName(String typeName) {
-                incAction(METRICS_TYPENAME,CacheMetricsAction.MISS);
+                MetricManager.INSTANCE.getCounter(typeMiss).inc();
                 return retriever.retrieveSchemaByName(typeName);
             }
 
             @Override
             public EntryList retrieveSchemaRelations(long schemaId, BaseRelationType type, Direction dir) {
-                incAction(METRICS_RELATIONS,CacheMetricsAction.MISS);
+                MetricManager.INSTANCE.getCounter(relationMiss).inc();
                 return retriever.retrieveSchemaRelations(schemaId, type, dir);
             }
         });
     }
 
-    private void incAction(String type, CacheMetricsAction action) {
-        MetricManager.INSTANCE.getCounter(GraphDatabaseConfiguration.METRICS_SYSTEM_PREFIX_DEFAULT, METRICS_NAME, type, action.getName()).inc();
-    }
-
     @Override
     public Long getSchemaId(String schemaName) {
-        incAction(METRICS_TYPENAME,CacheMetricsAction.RETRIEVAL);
+        MetricManager.INSTANCE.getCounter(typeRetrieval).inc();
         return cache.getSchemaId(schemaName);
     }
 
     @Override
     public EntryList getSchemaRelations(long schemaId, BaseRelationType type, Direction dir) {
-        incAction(METRICS_RELATIONS,CacheMetricsAction.RETRIEVAL);
+        MetricManager.INSTANCE.getCounter(relationRetrieval).inc();
         return cache.getSchemaRelations(schemaId, type, dir);
     }
 
