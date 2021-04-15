@@ -15,6 +15,9 @@
 package org.janusgraph.graphdb.query;
 
 import com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.janusgraph.core.EdgeLabel;
 import org.janusgraph.core.JanusGraphEdge;
 import org.janusgraph.core.JanusGraphElement;
@@ -50,6 +53,7 @@ import java.util.Set;
  * @author Matthias Broecheler (me@matthiasb.com)
  */
 public class QueryUtil {
+    private static final Logger logger = LoggerFactory.getLogger(QueryUtil.class);
 
     public static int adjustLimitForTxModifications(StandardJanusGraphTx tx, int uncoveredAndConditions, int limit) {
         assert limit > 0;
@@ -385,7 +389,9 @@ public class QueryUtil {
                     throw new JanusGraphException("Could not process individual retrieval call ", e);
                 }
 
-                if (subResult.size() >= subLimit) exhaustedResults = false;
+                if (subResult.size() >= subLimit) {
+                    exhaustedResults = false;
+                }
                 if (results == null) {
                     results = new ArrayList<>(subResult);
                 } else {
@@ -399,6 +405,10 @@ public class QueryUtil {
                 }
             }
             subLimit = (int) Math.min(Integer.MAX_VALUE - 1, Math.max(Math.pow(subLimit, 1.5),(subLimit+1)*2));
+
+            if (results != null && results.size() < limit && !exhaustedResults) {
+                logger.warn("Process intersecting not exhausted, current size {}, new limit {}", results.size(), subLimit);
+            }
         } while (results != null && results.size() < limit && !exhaustedResults);
         return results;
     }

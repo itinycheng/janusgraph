@@ -15,6 +15,9 @@
 package org.janusgraph.graphdb.query;
 
 import com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.tinkerpop.gremlin.structure.util.CloseableIterator;
 
 import java.util.Iterator;
@@ -34,10 +37,11 @@ import java.util.NoSuchElementException;
  * @author Matthias Broecheler (me@matthiasb.com)
  */
 public abstract class LimitAdjustingIterator<R> implements CloseableIterator<R> {
-
+    private static final Logger logger = LoggerFactory.getLogger(LimitAdjustingIterator.class);
     private final int maxLimit;
     private int currentLimit;
     private int count;
+    private int numberOfRestart = 0;
 
     private Iterator<R> iterator;
 
@@ -74,7 +78,11 @@ public abstract class LimitAdjustingIterator<R> implements CloseableIterator<R> 
         //Close old iterator. This is needed otherwise it would not be timed properly by profiler.
         CloseableIterator.closeIterator(iterator);
         //Get an iterator with an updated limit
-        currentLimit = (int) Math.min(maxLimit, Math.round(currentLimit * 2.0));
+        currentLimit = (int) Math.min(maxLimit, Math.round(currentLimit * (2.0 + numberOfRestart)));
+        if (logger.isDebugEnabled()) {
+            logger.debug(String.format("Restart limit adjusting iterator with new limit %d (%d times)", currentLimit, ++numberOfRestart),
+                new Throwable());
+        }
         iterator = getNewIterator(currentLimit);
 
         /*
