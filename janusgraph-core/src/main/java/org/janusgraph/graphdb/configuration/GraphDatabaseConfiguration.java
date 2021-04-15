@@ -281,6 +281,10 @@ public class GraphDatabaseConfiguration {
                     "will be inserted. This option only takes effect if query.batch is enabled.",
             ConfigOption.Type.MASKABLE, true);
 
+    public static final ConfigOption<Boolean> PARTITION_MULTIQUERY = new ConfigOption<>(QUERY_NS,"partition-multiquery",
+        "Whether traversal queries will be partitioned into PAGE_SIZE before send by multiquery.",
+        ConfigOption.Type.MASKABLE, false);
+
     public static final ConfigOption<String> INDEX_SELECT_STRATEGY = new ConfigOption<>(QUERY_NS, "index-select-strategy",
             String.format("Name of the index selection strategy or full class name. Following shorthands can be used: <br>" +
                     "- `%s` (Try all combinations of index candidates and pick up optimal one)<br>" +

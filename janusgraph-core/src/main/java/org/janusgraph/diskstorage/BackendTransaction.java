@@ -15,6 +15,7 @@
 package org.janusgraph.diskstorage;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalInterruptedException;
 import org.janusgraph.core.JanusGraphException;
@@ -38,32 +39,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
-
-import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalInterruptedException;
-
-import com.google.common.base.Preconditions;
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.PAGE_SIZE;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.PARTITION_MULTIQUERY;
 
 /**
  * Bundles all storage/index transactions and provides a proxy for some of their
@@ -309,11 +297,52 @@ public class BackendTransaction implements LoggableTransaction {
 
     public Map<StaticBuffer,EntryList> edgeStoreMultiQuery(final List<StaticBuffer> keys, final SliceQuery query) {
         if (storeFeatures.hasMultiQuery()) {
-            return executeRead(new Callable<Map<StaticBuffer,EntryList>>() {
+            if (txConfig.getCustomOption(PARTITION_MULTIQUERY)) {
+                final Map<StaticBuffer, EntryList> results = new ConcurrentHashMap<>(keys.size());
+                List<List<StaticBuffer>> partitions = Lists.partition(keys, txConfig.getCustomOption(PAGE_SIZE));
+                final CountDownLatch doneSignal = new CountDownLatch(partitions.size());
+                final AtomicInteger failureCount = new AtomicInteger(0);
+                for (List<StaticBuffer> partition : partitions) {
+                    threadPool.execute(() -> {
+                        try {
+                            results.putAll(executeRead(new Callable<Map<StaticBuffer, EntryList>>() {
+                                @Override
+                                public Map<StaticBuffer, EntryList> call() throws Exception {
+                                    return cacheEnabled ? edgeStore.getSlice(partition, query, storeTx) :
+                                        edgeStore.getSliceNoCache(partition, query, storeTx);
+                                }
+
+                                @Override
+                                public String toString() {
+                                    return "PartitionedMultiEdgeStoreQuery";
+                                }
+                            }));
+                        } catch (Exception e) {
+                            failureCount.incrementAndGet();
+                            log.warn("Individual query in multi-transaction failed: ", e);
+                        } finally {
+                            doneSignal.countDown();
+                        }
+                    });
+                }
+
+                try {
+                    doneSignal.await();
+                } catch (InterruptedException e) {
+                    throw new JanusGraphException("Interrupted while waiting for multi-query to complete", e);
+                }
+                if (failureCount.get() > 0) {
+                    throw new JanusGraphException(
+                        "Could not successfully complete multi-query. " + failureCount.get() + " individual queries failed.");
+                }
+                return results;
+            }
+
+            return executeRead(new Callable<Map<StaticBuffer, EntryList>>() {
                 @Override
-                public Map<StaticBuffer,EntryList> call() throws Exception {
-                    return cacheEnabled?edgeStore.getSlice(keys, query, storeTx):
-                                        edgeStore.getSliceNoCache(keys, query, storeTx);
+                public Map<StaticBuffer, EntryList> call() throws Exception {
+                    return cacheEnabled ? edgeStore.getSlice(keys, query, storeTx) :
+                        edgeStore.getSliceNoCache(keys, query, storeTx);
                 }
 
                 @Override
@@ -507,7 +536,6 @@ public class BackendTransaction implements LoggableTransaction {
     private static class TotalsCallable implements Callable<Long> {
     	private final RawQuery query;
     	private final IndexTransaction indexTx;
-
     	public TotalsCallable(final RawQuery query, final IndexTransaction indexTx) {
     		this.query = query;
     		this.indexTx = indexTx;
