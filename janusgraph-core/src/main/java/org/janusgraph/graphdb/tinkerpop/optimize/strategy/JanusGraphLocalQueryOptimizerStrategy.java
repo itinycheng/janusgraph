@@ -60,14 +60,15 @@ public class JanusGraphLocalQueryOptimizerStrategy extends AbstractTraversalStra
         }
 
         boolean batchPropertyPrefetching = janusGraph.getConfiguration().batchPropertyPrefetching();
+        boolean batchLabelPrefetching = janusGraph.getConfiguration().batchLabelPrefetching();
         int txVertexCacheSize = janusGraph.getConfiguration().getTxVertexCacheSize();
 
-        applyJanusGraphVertexSteps(traversal, batchPropertyPrefetching, txVertexCacheSize);
+        applyJanusGraphVertexSteps(traversal, batchPropertyPrefetching, batchLabelPrefetching, txVertexCacheSize);
         applyJanusGraphPropertiesSteps(traversal);
         inspectLocalTraversals(traversal);
     }
 
-    private void applyJanusGraphVertexSteps(Admin<?, ?> traversal, boolean batchPropertyPrefetching, int txVertexCacheSize) {
+    private void applyJanusGraphVertexSteps(Admin<?, ?> traversal, boolean batchPropertyPrefetching, boolean batchLabelPrefetching, int txVertexCacheSize) {
         TraversalHelper.getStepsOfAssignableClass(VertexStep.class, traversal).forEach(originalStep -> {
             final JanusGraphVertexStep vertexStep = new JanusGraphVertexStep(originalStep);
             TraversalHelper.replaceStep(originalStep, vertexStep, originalStep.getTraversal());
@@ -87,6 +88,14 @@ public class JanusGraphLocalQueryOptimizerStrategy extends AbstractTraversalStra
 
             if (batchPropertyPrefetching) {
                 applyBatchPropertyPrefetching(originalStep.getTraversal(), vertexStep, nextStep, txVertexCacheSize);
+            }
+            if (batchLabelPrefetching) {
+                if (Vertex.class.isAssignableFrom(vertexStep.getReturnClass())) {
+                    if (HasStepFolder.foldableHasContainerNoLimit(vertexStep)) {
+                        vertexStep.setBatchLabelPrefetching(true);
+                        vertexStep.setTxVertexCacheSize(txVertexCacheSize);
+                    }
+                }
             }
         });
     }

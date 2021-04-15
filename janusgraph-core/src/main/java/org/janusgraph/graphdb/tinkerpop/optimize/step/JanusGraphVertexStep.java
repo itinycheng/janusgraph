@@ -32,6 +32,7 @@ import org.janusgraph.core.JanusGraphException;
 import org.janusgraph.core.JanusGraphMultiVertexQuery;
 import org.janusgraph.core.JanusGraphVertex;
 import org.janusgraph.core.JanusGraphVertexQuery;
+import org.janusgraph.core.VertexLabel;
 import org.janusgraph.graphdb.query.BaseQuery;
 import org.janusgraph.graphdb.query.JanusGraphPredicateUtils;
 import org.janusgraph.graphdb.query.Query;
@@ -39,6 +40,19 @@ import org.janusgraph.graphdb.query.profile.QueryProfiler;
 import org.janusgraph.graphdb.query.vertex.BasicVertexCentricQueryBuilder;
 import org.janusgraph.graphdb.tinkerpop.optimize.JanusGraphTraversalUtil;
 import org.janusgraph.graphdb.tinkerpop.profile.TP3ProfileWrapper;
+import org.janusgraph.graphdb.types.system.BaseLabel;
+import org.janusgraph.graphdb.vertices.AbstractVertex;
+
+import org.apache.tinkerpop.gremlin.process.traversal.Order;
+import org.apache.tinkerpop.gremlin.process.traversal.Traverser;
+import org.apache.tinkerpop.gremlin.process.traversal.step.Profiling;
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.VertexStep;
+import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer;
+import org.apache.tinkerpop.gremlin.process.traversal.util.MutableMetrics;
+import org.apache.tinkerpop.gremlin.structure.Direction;
+import org.apache.tinkerpop.gremlin.structure.Element;
+import org.apache.tinkerpop.gremlin.structure.Vertex;
+import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -46,6 +60,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import com.google.common.collect.Iterables;
 
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
@@ -54,6 +69,7 @@ public class JanusGraphVertexStep<E extends Element> extends VertexStep<E> imple
 
     private boolean useMultiQuery = false;
     private boolean batchPropertyPrefetching = false;
+    private boolean batchLabelPrefetching = false;
     private Set<Vertex> verticesToPrefetch = new HashSet<>();
     private Map<JanusGraphVertex, Iterable<? extends JanusGraphElement>> multiQueryResults = null;
     private QueryProfiler queryProfiler = QueryProfiler.NO_OP;
@@ -86,6 +102,10 @@ public class JanusGraphVertexStep<E extends Element> extends VertexStep<E> imple
 
     public void setBatchPropertyPrefetching(boolean batchPropertyPrefetching) {
         this.batchPropertyPrefetching = batchPropertyPrefetching;
+    }
+
+    public void setBatchLabelPrefetching(boolean batchLabelPrefetching) {
+        this.batchLabelPrefetching = batchLabelPrefetching;
     }
 
     public void setTxVertexCacheSize(int txVertexCacheSize) {
@@ -142,6 +162,28 @@ public class JanusGraphVertexStep<E extends Element> extends VertexStep<E> imple
             result = (Vertex.class.isAssignableFrom(getReturnClass())) ? query.vertices() : query.edges();
         }
 
+        if (batchLabelPrefetching) {
+            List<JanusGraphElement> vertices = new ArrayList<>();
+            for (JanusGraphElement janusGraphElement : result) {
+                if (vertices.size() < txVertexCacheSize) {
+                    vertices.add(janusGraphElement);
+                } else {
+                    break;
+                }
+            }
+            if (vertices.size() > 1) {
+                JanusGraphMultiVertexQuery labelMultiQuery = JanusGraphTraversalUtil.getTx(traversal).multiQuery();
+                ((BasicVertexCentricQueryBuilder) labelMultiQuery).profiler(queryProfiler);
+                queryProfiler.setAnnotation("prefetchLabelVertex", true);
+                Map<JanusGraphVertex, Iterable<JanusGraphVertex>> labels = labelMultiQuery
+                    .addAllVertices(vertices)
+                    .types(BaseLabel.VertexLabelEdge)
+                    .direction(Direction.OUT)
+                    .vertices();
+                labels.forEach((v, label) -> ((AbstractVertex) v).setVertexLabel((VertexLabel) Iterables.getOnlyElement(label, null)));
+            }
+        }
+
         if (batchPropertyPrefetching && txVertexCacheSize > 1) {
             Set<Vertex> vertices = new HashSet<>();
             for(JanusGraphElement v : result){
@@ -156,6 +198,9 @@ public class JanusGraphVertexStep<E extends Element> extends VertexStep<E> imple
             if (vertices.size() > 1) {
                 JanusGraphMultiVertexQuery propertyMultiQuery = JanusGraphTraversalUtil.getTx(traversal).multiQuery();
                 ((BasicVertexCentricQueryBuilder) propertyMultiQuery).profiler(queryProfiler);
+                for (final HasContainer condition : hasContainers) {
+                    propertyMultiQuery.has(condition.getKey(), JanusGraphPredicateUtils.convert(condition.getBiPredicate()), condition.getValue());
+                }
                 propertyMultiQuery.addAllVertices(vertices).preFetch();
             }
         }

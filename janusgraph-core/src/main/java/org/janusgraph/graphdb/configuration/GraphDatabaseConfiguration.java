@@ -305,6 +305,12 @@ public class GraphDatabaseConfiguration {
                     "lead to significant performance improvement if there are many edges to adjacent vertices and there is a non-trivial latency to the backend.",
             ConfigOption.Type.MASKABLE, false);
 
+    public static final ConfigOption<Boolean> BATCH_LABEL_PREFETCHING = new ConfigOption<>(QUERY_NS,"batch-label-prefetch",
+        "Whether to do a batched pre-fetch of all properties on adjacent vertices against the storage backend prior to evaluating a has condition against those vertices. " +
+        "Because these vertex properties will be loaded into the transaction-level cache of recently-used vertices when the condition is evaluated this can " +
+        "lead to significant performance improvement if there are many edges to adjacent vertices and there is a non-trivial latency to the backend.",
+        ConfigOption.Type.MASKABLE, false);
+
     // ################ SCHEMA #######################
     // ################################################
 
@@ -1272,6 +1278,7 @@ public class GraphDatabaseConfiguration {
     private boolean optimizerBackendAccess;
     private IndexSelectionStrategy indexSelectionStrategy;
     private Boolean batchPropertyPrefetching;
+    private Boolean batchLabelPrefetching;
     private boolean allowVertexIdSetting;
     private boolean logTransactions;
     private String metricsPrefix;
@@ -1380,6 +1387,10 @@ public class GraphDatabaseConfiguration {
 
     public boolean batchPropertyPrefetching() {
         return batchPropertyPrefetching;
+    }
+
+    public boolean batchLabelPrefetching() {
+        return batchLabelPrefetching;
     }
 
     public boolean adjustQueryLimit() {
@@ -1511,6 +1522,7 @@ public class GraphDatabaseConfiguration {
             REGISTERED_INDEX_SELECTION_STRATEGIES);
         optimizerBackendAccess = configuration.get(OPTIMIZER_BACKEND_ACCESS);
         batchPropertyPrefetching = configuration.get(BATCH_PROPERTY_PREFETCHING);
+        batchLabelPrefetching = configuration.get(BATCH_LABEL_PREFETCHING);
         adjustQueryLimit = configuration.get(ADJUST_LIMIT);
         hardMaxLimit = configuration.get(HARD_MAX_LIMIT);
         allowVertexIdSetting = configuration.get(ALLOW_SETTING_VERTEX_ID);
