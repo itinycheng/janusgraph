@@ -160,6 +160,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -1689,16 +1690,21 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
     private void releaseTransaction() {
         isOpen = false;
         graph.closeTransaction(this);
-        vertexCache = EmptyVertexCache.getInstance();
-        indexCache = EmptySubqueryCache.getInstance();
-        addedRelations = EmptyAddedRelations.getInstance();
-        deletedRelations = Collections.emptyMap();
-        uniqueLocks = Collections.emptyMap();
-        newVertexIndexEntries = EmptyIndexCache.getInstance();
-        newTypeCache = Collections.emptyMap();
-        vertexProperty2ApplicableIndices = null;
-        originalIndices = null;
-        propertyKeyHasIndexMap = null;
+        vertexCache.close();
+        indexCache.close();
+        addedRelations.clear();
+        if (!Objects.equals(EMPTY_DELETED_RELATIONS, deletedRelations)) {
+            deletedRelations.clear();
+        }
+        if (!Objects.equals(UNINITIALIZED_LOCKS, uniqueLocks)) {
+            uniqueLocks.clear();
+        }
+        newVertexIndexEntries.close();
+        newTypeCache.clear();
+        schemaVertexCache.clear();
+        vertexProperty2ApplicableIndices.clear();
+        originalIndices.clear();
+        propertyKeyHasIndexMap.clear();
     }
 
     @Override
