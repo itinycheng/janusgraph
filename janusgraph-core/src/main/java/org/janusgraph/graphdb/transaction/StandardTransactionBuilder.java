@@ -32,6 +32,7 @@ import org.janusgraph.graphdb.database.StandardJanusGraph;
 import java.time.Instant;
 
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.ROOT_NS;
+import org.janusgraph.graphdb.transaction.vertexcache.CacheType;
 
 /**
  * Used to configure a {@link org.janusgraph.core.JanusGraphTransaction}.
@@ -68,6 +69,8 @@ public class StandardTransactionBuilder implements TransactionConfiguration, Tra
     private boolean singleThreaded = false;
 
     private boolean threadBound = false;
+
+    private CacheType vertexCacheType;
 
     private int vertexCacheSize;
 
@@ -112,6 +115,7 @@ public class StandardTransactionBuilder implements TransactionConfiguration, Tra
         this.multiQuery = graphConfig.useMultiQuery();
         this.writableCustomOptions = GraphDatabaseConfiguration.buildGraphConfiguration();
         this.customOptions = new MergedConfiguration(writableCustomOptions, graphConfig.getConfiguration());
+        vertexCacheType(graphConfig.getTxVertexCacheType());
         vertexCacheSize(graphConfig.getTxVertexCacheSize());
         dirtyVertexSize(graphConfig.getTxDirtyVertexSize());
     }
@@ -132,6 +136,7 @@ public class StandardTransactionBuilder implements TransactionConfiguration, Tra
         this.multiQuery = graphConfig.useMultiQuery();
         this.writableCustomOptions = null;
         this.customOptions = customOptions;
+        vertexCacheType(graphConfig.getTxVertexCacheType());
         vertexCacheSize(graphConfig.getTxVertexCacheSize());
         dirtyVertexSize(graphConfig.getTxDirtyVertexSize());
     }
@@ -183,6 +188,12 @@ public class StandardTransactionBuilder implements TransactionConfiguration, Tra
     @Override
     public StandardTransactionBuilder multiQuery(boolean enabled) {
         multiQuery = enabled;
+        return this;
+    }
+
+    @Override
+    public StandardTransactionBuilder vertexCacheType(CacheType cacheType) {
+        this.vertexCacheType = cacheType;
         return this;
     }
 
@@ -281,7 +292,7 @@ public class StandardTransactionBuilder implements TransactionConfiguration, Tra
                 assignIDsImmediately, preloadedData, forceIndexUsage, verifyExternalVertexExistence,
                 verifyInternalVertexExistence, acquireLocks, verifyUniqueness,
                 propertyPrefetching, multiQuery, singleThreaded, threadBound, getTimestampProvider(), userCommitTime,
-                indexCacheWeight, getVertexCacheSize(), getDirtyVertexSize(),
+                indexCacheWeight, getVertexCacheType(), getVertexCacheSize(), getDirtyVertexSize(),
                 logIdentifier, restrictedPartitions, groupName,
                 defaultSchemaMaker, hasDisabledSchemaConstraints, skipDBCacheRead, customOptions);
         return graph.newTransaction(immutable);
@@ -363,6 +374,11 @@ public class StandardTransactionBuilder implements TransactionConfiguration, Tra
     @Override
     public final boolean isThreadBound() {
         return threadBound;
+    }
+
+    @Override
+    public final CacheType getVertexCacheType() {
+        return vertexCacheType;
     }
 
     @Override
@@ -451,6 +467,7 @@ public class StandardTransactionBuilder implements TransactionConfiguration, Tra
         private final boolean isSingleThreaded;
         private final boolean isThreadBound;
         private final long indexCacheWeight;
+        private final CacheType vertexCacheType;
         private final int vertexCacheSize;
         private final int dirtyVertexSize;
 
@@ -463,21 +480,23 @@ public class StandardTransactionBuilder implements TransactionConfiguration, Tra
         private final BaseTransactionConfig handleConfig;
 
         public ImmutableTxCfg(boolean isReadOnly,
-                boolean hasEnabledBatchLoading,
-                boolean hasAssignIDsImmediately,
-                boolean hasPreloadedData,
-                boolean hasForceIndexUsage,
-                boolean hasVerifyExternalVertexExistence,
-                boolean hasVerifyInternalVertexExistence,
-                boolean hasAcquireLocks, boolean hasVerifyUniqueness,
-                boolean hasPropertyPrefetching, boolean useMultiQuery, boolean isSingleThreaded,
-                boolean isThreadBound, TimestampProvider times, Instant commitTime,
-                long indexCacheWeight, int vertexCacheSize, int dirtyVertexSize, String logIdentifier,
-                int[] restrictedPartitions,
-                String groupName,
-                DefaultSchemaMaker defaultSchemaMaker,
-                boolean hasDisabledSchemaConstraints,
-                boolean skipDBCacheRead,
+                              boolean hasEnabledBatchLoading,
+                              boolean hasAssignIDsImmediately,
+                              boolean hasPreloadedData,
+                              boolean hasForceIndexUsage,
+                              boolean hasVerifyExternalVertexExistence,
+                              boolean hasVerifyInternalVertexExistence,
+                              boolean hasAcquireLocks, boolean hasVerifyUniqueness,
+                              boolean hasPropertyPrefetching, boolean useMultiQuery, boolean isSingleThreaded,
+                              boolean isThreadBound, TimestampProvider times, Instant commitTime,
+                              long indexCacheWeight,
+                              CacheType vertexCacheType,
+                              int vertexCacheSize, int dirtyVertexSize, String logIdentifier,
+                              int[] restrictedPartitions,
+                              String groupName,
+                              DefaultSchemaMaker defaultSchemaMaker,
+                              boolean hasDisabledSchemaConstraints,
+                              boolean skipDBCacheRead,
                 Configuration customOptions) {
             this.isReadOnly = isReadOnly;
             this.hasEnabledBatchLoading = hasEnabledBatchLoading;
@@ -493,6 +512,7 @@ public class StandardTransactionBuilder implements TransactionConfiguration, Tra
             this.isSingleThreaded = isSingleThreaded;
             this.isThreadBound = isThreadBound;
             this.indexCacheWeight = indexCacheWeight;
+            this.vertexCacheType = vertexCacheType;
             this.vertexCacheSize = vertexCacheSize;
             this.dirtyVertexSize = dirtyVertexSize;
             this.logIdentifier = logIdentifier;
@@ -580,6 +600,11 @@ public class StandardTransactionBuilder implements TransactionConfiguration, Tra
         @Override
         public boolean isThreadBound() {
             return isThreadBound;
+        }
+
+        @Override
+        public CacheType getVertexCacheType() {
+            return vertexCacheType;
         }
 
         @Override

@@ -16,6 +16,7 @@ package org.janusgraph.graphdb.transaction;
 
 import org.janusgraph.core.schema.DefaultSchemaMaker;
 import org.janusgraph.diskstorage.BaseTransactionConfig;
+import org.janusgraph.graphdb.transaction.vertexcache.CacheType;
 
 /**
  * Provides configuration options for {@link org.janusgraph.core.JanusGraphTransaction}.
@@ -137,6 +138,8 @@ public interface TransactionConfiguration extends BaseTransactionConfig {
      * @return
      */
     boolean isThreadBound();
+
+    CacheType getVertexCacheType();
 
     /**
      * The maximum number of recently-used vertices to cache in this transaction.

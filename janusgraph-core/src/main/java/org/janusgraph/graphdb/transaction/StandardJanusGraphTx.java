@@ -116,6 +116,7 @@ import org.janusgraph.graphdb.transaction.subquerycache.EmptySubqueryCache;
 import org.janusgraph.graphdb.transaction.subquerycache.CaffeineSubqueryCache;
 import org.janusgraph.graphdb.transaction.subquerycache.SubqueryCache;
 import org.janusgraph.graphdb.transaction.vertexcache.CaffeineVertexCache;
+import org.janusgraph.graphdb.transaction.vertexcache.CaffeineVertexCache;
 import org.janusgraph.graphdb.transaction.vertexcache.EmptyVertexCache;
 import org.janusgraph.graphdb.transaction.vertexcache.VertexCache;
 import org.janusgraph.graphdb.types.CompositeIndexType;
@@ -360,7 +361,16 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
                 }
             };
         } else {
-            vertexCache = new CaffeineVertexCache(effectiveVertexCacheSize,  config.getDirtyVertexSize());
+            switch (config.getVertexCacheType()) {
+                case GUAVA:
+                    vertexCache = new CaffeineVertexCache(effectiveVertexCacheSize,  config.getDirtyVertexSize());
+                    break;
+                case CAFFEINE:
+                    vertexCache = new CaffeineVertexCache(effectiveVertexCacheSize);
+                    break;
+                default:
+                    throw new IllegalArgumentException(config.getVertexCacheType().name());
+            }
         }
         schemaVertexCache = new ConcurrentHashMap<>();
 

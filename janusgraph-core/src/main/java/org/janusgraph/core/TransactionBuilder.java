@@ -15,6 +15,7 @@
 package org.janusgraph.core;
 
 import org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration;
+import org.janusgraph.graphdb.transaction.vertexcache.CacheType;
 
 import java.time.Instant;
 
@@ -57,6 +58,8 @@ public interface TransactionBuilder {
      * @return Object containing properties that will disable batch loading
      */
     TransactionBuilder disableBatchLoading();
+
+    TransactionBuilder vertexCacheType(CacheType cacheType);
 
     /**
      * Enable or disable property pre-fetching, i.e. query.fast-property option.
