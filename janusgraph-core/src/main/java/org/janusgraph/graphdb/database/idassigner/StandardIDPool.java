@@ -211,7 +211,6 @@ public class StandardIDPool implements IDPool {
         long returnId = currentBlock.getId(currentIndex);
         currentIndex++;
         if (returnId >= idUpperBound) throw new IDPoolExhaustedException("Reached id upper bound of " + idUpperBound);
-        log.trace("partition({})-namespace({}) Returned id: {}", partition, idNamespace, returnId);
         return returnId;
     }
 
