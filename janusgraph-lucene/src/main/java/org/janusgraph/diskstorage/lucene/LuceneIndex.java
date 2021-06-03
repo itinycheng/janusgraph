@@ -541,6 +541,10 @@ public class LuceneIndex implements IndexProvider {
                 continue;
             }
             KeyInformation ki = information.get(getOrigFieldName(fieldName));
+            if (ki == null) {
+                log.warn("Document contain field that not exists in schema: " + fieldName + ". Skip it");
+                continue;
+            }
             boolean isPossibleSortIndex = ki.getCardinality() == Cardinality.SINGLE;
             Class<?> dataType = ki.getDataType();
             if (AttributeUtils.isWholeNumber(dataType)) {
