@@ -46,6 +46,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.janusgraph.graphdb.types.system.ImplicitKey;
+
+import java.util.*;
 
 /**
  * Utility methods used in query optimization and processing.
@@ -196,7 +199,6 @@ public class QueryUtil {
             final Object value = atom.getValue();
             final JanusGraphPredicate predicate = atom.getPredicate();
 
-
             if (type.isPropertyKey()) {
                 final PropertyKey key = (PropertyKey) type;
                 assert predicate.isValidCondition(value);
@@ -204,6 +206,14 @@ public class QueryUtil {
             } else { //its a label
                 Preconditions.checkArgument(((EdgeLabel) type).isUnidirected());
                 Preconditions.checkArgument(predicate.isValidValueType(JanusGraphVertex.class), "Data type of key is not compatible with condition");
+            }
+
+            // TODO: add support for Contain/And/Or
+            if (type.equals(ImplicitKey.LABEL) && predicate == Cmp.EQUAL) {
+                String labelValue = (String) value;
+                if (!(tx.containsVertexLabel(labelValue) || tx.containsEdgeLabel(labelValue) || tx.containsPropertyKey(labelValue))) {
+                    return null;
+                }
             }
 
             if (predicate instanceof Contain) {
