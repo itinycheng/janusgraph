@@ -49,7 +49,7 @@ public class DisableDefaultSchemaMaker implements DefaultSchemaMaker {
 
     @Override
     public boolean ignoreUndefinedQueryTypes() {
-        return false;
+        return true;
     }
 
     @Override
