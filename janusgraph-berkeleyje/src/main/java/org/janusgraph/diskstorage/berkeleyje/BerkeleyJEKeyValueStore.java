@@ -23,6 +23,7 @@ import com.sleepycat.je.DatabaseEntry;
 import com.sleepycat.je.DatabaseException;
 import com.sleepycat.je.EnvironmentFailureException;
 import com.sleepycat.je.Get;
+import com.sleepycat.je.LockTimeoutException;
 import com.sleepycat.je.OperationResult;
 import com.sleepycat.je.OperationStatus;
 import com.sleepycat.je.Put;
@@ -37,6 +38,7 @@ import org.janusgraph.diskstorage.keycolumnvalue.keyvalue.KVQuery;
 import org.janusgraph.diskstorage.keycolumnvalue.keyvalue.KeySelector;
 import org.janusgraph.diskstorage.keycolumnvalue.keyvalue.KeyValueEntry;
 import org.janusgraph.diskstorage.keycolumnvalue.keyvalue.OrderedKeyValueStore;
+import org.janusgraph.diskstorage.locking.TemporaryLockingException;
 import org.janusgraph.diskstorage.util.RecordIterator;
 import org.janusgraph.diskstorage.util.StaticArrayBuffer;
 import org.slf4j.Logger;
@@ -237,13 +239,17 @@ public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
             int convertedTtl = ttlConverter.apply(ttl);
             writeOptions.setTTL(convertedTtl, TimeUnit.HOURS);
         }
-        if (allowOverwrite) {
-            OperationResult result = db.put(tx, key.as(ENTRY_FACTORY), value.as(ENTRY_FACTORY), Put.OVERWRITE, writeOptions);
-            EnvironmentFailureException.assertState(result != null);
-            status = OperationStatus.SUCCESS;
-        } else {
-            OperationResult result = db.put(tx, key.as(ENTRY_FACTORY), value.as(ENTRY_FACTORY), Put.NO_OVERWRITE, writeOptions);
-            status = result == null ? OperationStatus.KEYEXIST : OperationStatus.SUCCESS;
+        try {
+            if (allowOverwrite) {
+                OperationResult result = db.put(tx, key.as(ENTRY_FACTORY), value.as(ENTRY_FACTORY), Put.OVERWRITE, writeOptions);
+                EnvironmentFailureException.assertState(result != null);
+                status = OperationStatus.SUCCESS;
+            } else {
+                OperationResult result = db.put(tx, key.as(ENTRY_FACTORY), value.as(ENTRY_FACTORY), Put.NO_OVERWRITE, writeOptions);
+                status = result == null ? OperationStatus.KEYEXIST : OperationStatus.SUCCESS;
+            }
+        } catch (LockTimeoutException e) {
+            throw new TemporaryLockingException(e);
         }
 
         if (status != OperationStatus.SUCCESS) {
