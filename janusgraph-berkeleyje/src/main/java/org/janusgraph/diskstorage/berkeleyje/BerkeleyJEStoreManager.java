@@ -88,6 +88,9 @@ public class BerkeleyJEStoreManager extends LocalStoreManager implements Ordered
             ConfigOption.Type.MASKABLE,  String.class,
             IsolationLevel.REPEATABLE_READ.toString(), disallowEmpty(String.class));
 
+    public static final ConfigNamespace BERKELEY_CONFIGURATION_NAMESPACE =
+        new ConfigNamespace(BERKELEY_NS, "ext", "Overrides for environment config", true);
+
     private final Map<String, BerkeleyJEKeyValueStore> stores;
 
     protected Environment environment;
@@ -127,6 +130,12 @@ public class BerkeleyJEStoreManager extends LocalStoreManager implements Ordered
             envConfig.setSharedCache(sharedCache);
             envConfig.setCacheMode(cacheMode);
 
+            Map<String,Object> configSub = storageConfig.getSubset(BERKELEY_CONFIGURATION_NAMESPACE);
+            for (Map.Entry<String,Object> entry : configSub.entrySet()) {
+                log.info("Berkeley configuration: setting {}={}", entry.getKey(), entry.getValue());
+                if (entry.getValue()==null) continue;
+                envConfig.setConfigParam(entry.getKey(), entry.getValue().toString());
+            }
             if (batchLoading) {
                 envConfig.setConfigParam(EnvironmentConfig.ENV_RUN_CHECKPOINTER, "false");
                 envConfig.setConfigParam(EnvironmentConfig.ENV_RUN_CLEANER, "false");

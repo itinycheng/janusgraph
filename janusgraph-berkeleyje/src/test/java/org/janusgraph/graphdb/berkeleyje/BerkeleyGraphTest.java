@@ -21,6 +21,17 @@ import org.janusgraph.core.JanusGraphException;
 import org.janusgraph.core.JanusGraphFactory;
 import org.janusgraph.diskstorage.Backend;
 import org.janusgraph.diskstorage.BackendException;
+import org.janusgraph.diskstorage.configuration.ConfigOption;
+import org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration;
+
+import com.sleepycat.je.EnvironmentConfig;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Preconditions;
+import org.janusgraph.BerkeleyStorageSetup;
 import org.janusgraph.diskstorage.berkeleyje.BerkeleyJEStoreManager;
 import org.janusgraph.diskstorage.berkeleyje.BerkeleyJEStoreManager.IsolationLevel;
 import org.janusgraph.diskstorage.configuration.ConfigElement;
@@ -37,6 +48,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 
+import static org.janusgraph.diskstorage.berkeleyje.BerkeleyJEStoreManager.BERKELEY_CONFIGURATION_NAMESPACE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -62,6 +74,10 @@ public class BerkeleyGraphTest extends JanusGraphTest {
             }
             log.debug("Using isolation level {} (null means adapter default) for test method {}", iso, methodName);
         }
+        WriteConfiguration rawConfig = modifiableConfiguration.getConfiguration();
+        rawConfig.set(BERKELEY_CONFIGURATION_NAMESPACE.toStringWithoutRoot() + "." + EnvironmentConfig.CLEANER_MIN_FILE_UTILIZATION, "50");
+        rawConfig.set(BERKELEY_CONFIGURATION_NAMESPACE.toStringWithoutRoot() + "." + EnvironmentConfig.CLEANER_MIN_UTILIZATION, "90");
+
         return modifiableConfiguration.getConfiguration();
     }
 
