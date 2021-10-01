@@ -25,6 +25,7 @@ import org.janusgraph.diskstorage.keycolumnvalue.StoreTransaction;
 import org.janusgraph.diskstorage.util.BackendOperation;
 import org.janusgraph.diskstorage.util.StandardBaseTransactionConfig;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.METRICS_PREFIX;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.SETUP_WAITTIME;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.SYSTEM_CONFIGURATION_IDENTIFIER;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.SYSTEM_PROPERTIES_STORE_NAME;
@@ -41,7 +42,10 @@ public class KCVSConfigurationBuilder {
             return buildGlobalConfiguration(new BackendOperation.TransactionalProvider() {
                 @Override
                 public StoreTransaction openTx() throws BackendException {
-                    return manager.beginTransaction(StandardBaseTransactionConfig.of(config.get(TIMESTAMP_PROVIDER),features.getKeyConsistentTxConfig()));
+                    return manager.beginTransaction(StandardBaseTransactionConfig.of(
+                        config.get(METRICS_PREFIX) + ".sys",
+                        config.get(TIMESTAMP_PROVIDER),
+                        features.getKeyConsistentTxConfig()));
                 }
 
                 @Override

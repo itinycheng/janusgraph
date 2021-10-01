@@ -36,12 +36,18 @@ public class MetricInstrumentedSchemaCache implements SchemaCache {
 
     private final SchemaCache cache;
 
-    private final String typeMiss = MetricRegistry.name(METRICS_SYSTEM_PREFIX_DEFAULT, METRICS_NAME, METRICS_TYPENAME, MISS.getName());
-    private final String typeRetrieval = MetricRegistry.name(METRICS_SYSTEM_PREFIX_DEFAULT, METRICS_NAME, METRICS_TYPENAME, RETRIEVAL.getName());
-    private final String relationMiss = MetricRegistry.name(METRICS_SYSTEM_PREFIX_DEFAULT, METRICS_NAME, METRICS_RELATIONS, MISS.getName());
-    private final String relationRetrieval = MetricRegistry.name(METRICS_SYSTEM_PREFIX_DEFAULT, METRICS_NAME, METRICS_RELATIONS, RETRIEVAL.getName());
+    private final String typeMiss;
+    private final String typeRetrieval;
+    private final String relationMiss;
+    private final String relationRetrieval;
 
-    public MetricInstrumentedSchemaCache(final StoreRetrieval retriever) {
+    public MetricInstrumentedSchemaCache(final String metricsPrefix, final StoreRetrieval retriever) {
+        String sysMetricsPrefix = metricsPrefix + ".sys";
+        typeMiss = MetricRegistry.name(sysMetricsPrefix, METRICS_NAME, METRICS_TYPENAME, MISS.getName());
+        typeRetrieval = MetricRegistry.name(sysMetricsPrefix, METRICS_NAME, METRICS_TYPENAME, RETRIEVAL.getName());
+        relationMiss = MetricRegistry.name(sysMetricsPrefix, METRICS_NAME, METRICS_RELATIONS, MISS.getName());
+        relationRetrieval = MetricRegistry.name(sysMetricsPrefix, METRICS_NAME, METRICS_RELATIONS, RETRIEVAL.getName());
+
         cache = new StandardSchemaCache(new StoreRetrieval() {
 
             @Override

@@ -75,7 +75,7 @@ public abstract class JanusGraphIterativeBenchmark extends JanusGraphBaseTest {
         SliceQuery query = new SliceQuery(BufferUtil.zeroBuffer(8),BufferUtil.oneBuffer(8));
         query.setLimit(2);
         Stopwatch watch = Stopwatch.createStarted();
-        StoreTransaction txh = manager.beginTransaction(StandardBaseTransactionConfig.of(TimestampProviders.MILLI));
+        StoreTransaction txh = manager.beginTransaction(StandardBaseTransactionConfig.of("sys", TimestampProviders.MILLI));
         KeyIterator iterator = store.getKeys(query,txh);
         int numV = 0;
         while(iterator.hasNext()) {

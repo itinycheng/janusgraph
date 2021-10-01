@@ -14,6 +14,8 @@
 
 package org.janusgraph.util.stats;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.METRICS_PREFIX_DEFAULT;
+
 import com.codahale.metrics.ConsoleReporter;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.CsvReporter;
@@ -25,7 +27,12 @@ import com.codahale.metrics.Timer;
 import com.codahale.metrics.graphite.Graphite;
 import com.codahale.metrics.graphite.GraphiteReporter;
 import com.codahale.metrics.jmx.JmxReporter;
+import com.codahale.metrics.jmx.ObjectNameFactory;
 import com.google.common.base.Preconditions;
+
+import javax.management.MalformedObjectNameException;
+import javax.management.ObjectName;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,6 +41,9 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.management.MBeanServer;
 import javax.management.MBeanServerFactory;
 
@@ -52,9 +62,11 @@ public enum MetricManager {
     private final MetricRegistry registry     = new MetricRegistry();
     private ConsoleReporter consoleReporter   = null;
     private CsvReporter csvReporter           = null;
-    private JmxReporter jmxReporter           = null;
+    private JmxReporter jmxReporter          = null;
     private Slf4jReporter slf4jReporter       = null;
     private GraphiteReporter graphiteReporter = null;
+
+    private final AtomicInteger jmxReporterRef = new AtomicInteger(0);
 
     /**
      * Return the JanusGraph Metrics registry.
@@ -161,6 +173,7 @@ public enum MetricManager {
      *            the JMX agent ID
      */
     public synchronized void addJmxReporter(String domain, String agentId) {
+        jmxReporterRef.incrementAndGet();
         if (null != jmxReporter) {
             log.debug("Metrics JmxReporter already active; not creating another");
             return;
@@ -177,12 +190,34 @@ public enum MetricManager {
             if (null != servers && 1 == servers.size()) {
                 b.registerWith(servers.get(0));
             } else {
-                log.error("Metrics Slf4jReporter agentId {} does not resolve to a single MBeanServer", agentId);
+                log.error("Metrics JmxReporter agentId {} does not resolve to a single MBeanServer", agentId);
             }
         }
+        b.createsObjectNamesWith(new JgObjectNameFactory());
 
-        jmxReporter = b.build();
-        jmxReporter.start();
+        JmxReporter jmxExporter = b.build();
+        jmxExporter.start();
+    }
+
+    public static class JgObjectNameFactory implements ObjectNameFactory {
+        private static final Pattern regex = Pattern.compile("([^_]+)_(" + METRICS_PREFIX_DEFAULT + ".*)");
+        @Override
+        public ObjectName createName(final String type, String domain, final String name) {
+            try {
+                String properties;
+                Matcher matcher = regex.matcher(name);
+                if (matcher.matches()) {
+                    String instance = matcher.group(1);
+                    String finalName = matcher.group(2);
+                    properties = "name=" + ObjectName.quote(finalName) + ",type=" + type + ",jg_instance=" + instance;
+                } else {
+                    properties = "name=" + ObjectName.quote(name) + ",type=" + type + ",jg_instance=global";
+                }
+                return new ObjectName(domain + ":" + properties);
+            } catch (MalformedObjectNameException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     /**
@@ -192,7 +227,7 @@ public enum MetricManager {
      * call to the associated add method.
      */
     public synchronized void removeJmxReporter() {
-        if (null != jmxReporter)
+        if (jmxReporter != null && jmxReporterRef.decrementAndGet() == 0)
             jmxReporter.stop();
 
         jmxReporter = null;

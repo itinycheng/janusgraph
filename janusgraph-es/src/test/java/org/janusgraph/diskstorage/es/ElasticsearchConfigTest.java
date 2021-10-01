@@ -196,7 +196,7 @@ public class ElasticsearchConfigTest {
         // Test that the "date" property throws an exception.
         final KeyInformation.IndexRetriever indexRetriever = IndexProviderTest
             .getIndexRetriever(IndexProviderTest.getMapping(idx.getFeatures(), ANALYZER_ENGLISH, ANALYZER_KEYWORD, preferredGeoShapeMapping()));
-        final BaseTransactionConfig txConfig = StandardBaseTransactionConfig.of(TimestampProviders.MILLI);
+        final BaseTransactionConfig txConfig = StandardBaseTransactionConfig.of("sys",TimestampProviders.MILLI);
         final IndexTransaction itx = new IndexTransaction(idx, indexRetriever, txConfig, maxWrite);
         try {
             idx.register(storeName, "date", IndexProviderTest.getMapping(idx.getFeatures(), ANALYZER_ENGLISH, ANALYZER_KEYWORD, preferredGeoShapeMapping()).get("date"));
@@ -292,7 +292,7 @@ public class ElasticsearchConfigTest {
 
         final KeyInformation.IndexRetriever indexRetriever = IndexProviderTest
             .getIndexRetriever(IndexProviderTest.getMapping(idx.getFeatures(), ANALYZER_ENGLISH, ANALYZER_KEYWORD, preferredGeoShapeMapping()));
-        final BaseTransactionConfig txConfig = StandardBaseTransactionConfig.of(TimestampProviders.MILLI);
+        final BaseTransactionConfig txConfig = StandardBaseTransactionConfig.of("sys", TimestampProviders.MILLI);
         final IndexTransaction itx = new IndexTransaction(idx, indexRetriever, txConfig, maxWrite);
 
         // Test that the "date" property works well.
@@ -313,7 +313,7 @@ public class ElasticsearchConfigTest {
         final String storeName = "jvmlocal_test_store";
         final KeyInformation.IndexRetriever indexRetriever = IndexProviderTest.getIndexRetriever(IndexProviderTest.getMapping(idx.getFeatures(), ANALYZER_STANDARD, ANALYZER_KEYWORD, preferredGeoShapeMapping()));
 
-        final BaseTransactionConfig txConfig = StandardBaseTransactionConfig.of(TimestampProviders.MILLI);
+        final BaseTransactionConfig txConfig = StandardBaseTransactionConfig.of("sys", TimestampProviders.MILLI);
         IndexTransaction itx = new IndexTransaction(idx, indexRetriever, txConfig, maxWrite);
         for (final Entry<String, KeyInformation> entry : IndexProviderTest.getMapping(idx.getFeatures(), "english", "keyword", preferredGeoShapeMapping()).entrySet()) {
            idx.register(storeName, entry.getKey(), entry.getValue(), itx);
@@ -357,7 +357,7 @@ public class ElasticsearchConfigTest {
         // Test that the "date" property throws an exception.
         final KeyInformation.IndexRetriever indexRetriever = IndexProviderTest
             .getIndexRetriever(IndexProviderTest.getMapping(idx.getFeatures(), ANALYZER_ENGLISH, ANALYZER_KEYWORD, preferredGeoShapeMapping()));
-        final BaseTransactionConfig txConfig = StandardBaseTransactionConfig.of(TimestampProviders.MILLI);
+        final BaseTransactionConfig txConfig = StandardBaseTransactionConfig.of("sys", TimestampProviders.MILLI);
         final IndexTransaction itx = new IndexTransaction(idx, indexRetriever, txConfig, maxWrite);
         try {
             idx.register(storeName, "date", IndexProviderTest.getMapping(idx.getFeatures(), ANALYZER_ENGLISH, ANALYZER_KEYWORD, preferredGeoShapeMapping()).get("date"));

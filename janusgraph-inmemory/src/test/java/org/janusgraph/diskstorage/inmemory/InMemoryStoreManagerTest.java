@@ -52,7 +52,7 @@ public class InMemoryStoreManagerTest
         assertEquals("testStore1", kcvs1.getName());
         assertEquals("testStore2", kcvs2.getName());
 
-        StoreTransaction txh = imsm.beginTransaction(StandardBaseTransactionConfig.of(TimestampProviders.MICRO, imsm.getFeatures().getKeyConsistentTxConfig()));
+        StoreTransaction txh = imsm.beginTransaction(StandardBaseTransactionConfig.of("sys", TimestampProviders.MICRO, imsm.getFeatures().getKeyConsistentTxConfig()));
 
         Map<String, Map<StaticBuffer, KCVMutation>> allMut= new HashMap<>();
         Map<StaticBuffer, KCVMutation> store1Mut = new HashMap<>();

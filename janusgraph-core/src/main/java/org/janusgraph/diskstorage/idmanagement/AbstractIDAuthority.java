@@ -24,6 +24,7 @@ import org.janusgraph.graphdb.database.idassigner.IDBlockSizer;
 
 import java.time.Duration;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.METRICS_PREFIX;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.UNIQUE_INSTANCE_ID;
 import static org.janusgraph.util.encoding.StringEncoding.UTF8_CHARSET;
 
@@ -64,7 +65,7 @@ public abstract class AbstractIDAuthority implements IDAuthority {
         this.idApplicationWaitMS =
                 config.get(GraphDatabaseConfiguration.IDAUTHORITY_WAIT);
 
-        this.metricsPrefix = GraphDatabaseConfiguration.METRICS_SYSTEM_PREFIX_DEFAULT;
+        this.metricsPrefix = config.get(METRICS_PREFIX) + ".sys";
     }
 
     @Override

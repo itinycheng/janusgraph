@@ -143,12 +143,12 @@ public class StandardBaseTransactionConfig implements BaseTransactionConfig {
         }
     }
 
-    public static StandardBaseTransactionConfig of(TimestampProvider times) {
-        return new Builder().timestampProvider(times).build();
+    public static StandardBaseTransactionConfig of(String metricsPrefix, TimestampProvider times) {
+        return new Builder().groupName(metricsPrefix).timestampProvider(times).build();
     }
 
-    public static StandardBaseTransactionConfig of(TimestampProvider times, Configuration customOptions) {
-        return new Builder().timestampProvider(times).customOptions(customOptions).build();
+    public static StandardBaseTransactionConfig of(String metricsPrefix, TimestampProvider times, Configuration customOptions) {
+        return new Builder().groupName(metricsPrefix).timestampProvider(times).customOptions(customOptions).build();
     }
 
 }

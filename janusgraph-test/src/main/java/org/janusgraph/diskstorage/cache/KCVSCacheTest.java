@@ -73,7 +73,7 @@ public abstract class KCVSCacheTest {
 
     public StoreTransaction getStoreTx() {
         try {
-        return storeManager.beginTransaction(StandardBaseTransactionConfig.of(times));
+        return storeManager.beginTransaction(StandardBaseTransactionConfig.of("", times));
         } catch (BackendException se) {
             throw new RuntimeException(se);
         }

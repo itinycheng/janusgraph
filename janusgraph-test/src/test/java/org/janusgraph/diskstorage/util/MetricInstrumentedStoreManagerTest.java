@@ -30,7 +30,7 @@ public class MetricInstrumentedStoreManagerTest {
         Object result = new Object();
         KeyColumnValueStoreManager mock = mock(KeyColumnValueStoreManager.class);
         when(mock.getHadoopManager()).thenReturn(result);
-        MetricInstrumentedStoreManager metricInstrumentedStoreManager = new MetricInstrumentedStoreManager(mock, "", true, "");
+        MetricInstrumentedStoreManager metricInstrumentedStoreManager = new MetricInstrumentedStoreManager(mock, "global", "", true, "");
 
         Object hadoopManager = metricInstrumentedStoreManager.getHadoopManager();
 

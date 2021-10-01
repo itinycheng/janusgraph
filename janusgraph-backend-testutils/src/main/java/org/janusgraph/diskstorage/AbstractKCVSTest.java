@@ -27,11 +27,11 @@ public class AbstractKCVSTest {
     protected static final TimestampProvider times = TimestampProviders.MICRO;
 
     protected StandardBaseTransactionConfig getTxConfig() {
-        return StandardBaseTransactionConfig.of(times);
+        return StandardBaseTransactionConfig.of("sys", times);
     }
 
     protected StandardBaseTransactionConfig getConsistentTxConfig(StoreManager manager) {
-        return StandardBaseTransactionConfig.of(times,manager.getFeatures().getKeyConsistentTxConfig());
+        return StandardBaseTransactionConfig.of("sys", times,manager.getFeatures().getKeyConsistentTxConfig());
     }
 
 }

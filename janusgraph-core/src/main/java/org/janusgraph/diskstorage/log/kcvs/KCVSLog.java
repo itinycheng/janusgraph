@@ -78,6 +78,7 @@ import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.LO
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.LOG_READ_THREADS;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.LOG_SEND_BATCH_SIZE;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.LOG_SEND_DELAY;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.METRICS_PREFIX;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.TIMESTAMP_PROVIDER;
 
 /**
@@ -207,6 +208,7 @@ public class KCVSLog implements Log, BackendOperation.TransactionalProvider {
      * The KCVSStore wrapped by this log
      */
     private final KeyColumnValueStore store;
+    private final Configuration config;
     /**
      * The read marker which indicates where to start reading from the log
      */
@@ -269,7 +271,8 @@ public class KCVSLog implements Log, BackendOperation.TransactionalProvider {
     private final TimestampProvider times;
 
     public KCVSLog(String name, KCVSLogManager manager, KeyColumnValueStore store, Configuration config) {
-        Preconditions.checkArgument(manager != null && name != null && store != null && config!=null);
+        Preconditions.checkArgument(manager != null && name != null && store != null && config != null);
+        this.config = config;
         this.name=name;
         this.manager=manager;
         this.store=store;
@@ -375,9 +378,11 @@ public class KCVSLog implements Log, BackendOperation.TransactionalProvider {
     public StoreTransaction openTx() throws BackendException {
         StandardBaseTransactionConfig config;
         if (keyConsistentOperations) {
-            config = StandardBaseTransactionConfig.of(times,manager.storeManager.getFeatures().getKeyConsistentTxConfig());
+            config = StandardBaseTransactionConfig.of(
+                this.config.get(METRICS_PREFIX) + ".sys",
+                times,manager.storeManager.getFeatures().getKeyConsistentTxConfig());
         } else {
-            config = StandardBaseTransactionConfig.of(times);
+            config = StandardBaseTransactionConfig.of(this.config.get(METRICS_PREFIX) + ".sys", times);
         }
         return manager.storeManager.beginTransaction(config);
     }

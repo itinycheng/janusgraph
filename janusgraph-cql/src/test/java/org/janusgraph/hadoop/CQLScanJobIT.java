@@ -77,7 +77,7 @@ public class CQLScanJobIT extends JanusGraphBaseTest {
 
         KeyColumnValueStoreManager mgr = new CQLStoreManager(GraphDatabaseConfiguration.buildGraphConfiguration());
         KeyColumnValueStore store = mgr.openDatabase("edgestore");
-        StoreTransaction tx = mgr.beginTransaction(StandardBaseTransactionConfig.of(TimestampProviders.MICRO));
+        StoreTransaction tx = mgr.beginTransaction(StandardBaseTransactionConfig.of("sys", TimestampProviders.MICRO));
         KeyColumnValueStoreUtil.loadValues(store, tx, values);
         tx.commit(); // noop on Cassandra, but harmless
 

@@ -235,7 +235,7 @@ public class Backend implements LockerProvider, AutoCloseable {
 
         KeyColumnValueStoreManager manager = getStorageManager(configuration);
         if (configuration.get(BASIC_METRICS)) {
-            storeManager = new MetricInstrumentedStoreManager(manager,METRICS_STOREMANAGER_NAME,configuration.get(METRICS_MERGE_STORES),METRICS_MERGED_STORE);
+            storeManager = new MetricInstrumentedStoreManager(manager, configuration.get(METRICS_PREFIX), METRICS_STOREMANAGER_NAME,configuration.get(METRICS_MERGE_STORES),METRICS_MERGED_STORE);
         } else {
             storeManager = manager;
         }
@@ -367,6 +367,7 @@ public class Backend implements LockerProvider, AutoCloseable {
                 @Override
                 public StoreTransaction openTx() throws BackendException {
                     return storeManagerLocking.beginTransaction(StandardBaseTransactionConfig.of(
+                            configuration.get(METRICS_PREFIX) + ".sys",
                             configuration.get(TIMESTAMP_PROVIDER),
                             storeFeatures.getKeyConsistentTxConfig()));
                 }
@@ -380,6 +381,7 @@ public class Backend implements LockerProvider, AutoCloseable {
                 @Override
                 public StoreTransaction openTx() throws BackendException {
                     return storeManagerLocking.beginTransaction(StandardBaseTransactionConfig.of(
+                        configuration.get(METRICS_PREFIX) + ".sys",
                         configuration.get(TIMESTAMP_PROVIDER),
                         storeFeatures.getKeyConsistentTxConfig()));
                 }

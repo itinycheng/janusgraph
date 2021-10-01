@@ -398,7 +398,7 @@ public abstract class LockKeyColumnValueStoreTest extends AbstractKCVSTest {
                         mockLockerProvider, Duration.ofMillis(100L));
 
         // Begin EVCTransaction
-        BaseTransactionConfig txCfg = StandardBaseTransactionConfig.of(times);
+        BaseTransactionConfig txCfg = StandardBaseTransactionConfig.of("sys", times);
         ExpectedValueCheckingTransaction tx = expManager.beginTransaction(txCfg);
 
         // openDatabase calls getLocker, and we do it numStores times

@@ -185,7 +185,7 @@ public abstract class IndexProviderTest {
     }
 
     public IndexTransaction openTx() throws BackendException {
-        final BaseTransactionConfig config = StandardBaseTransactionConfig.of(TimestampProviders.MILLI);
+        final BaseTransactionConfig config = StandardBaseTransactionConfig.of("sys", TimestampProviders.MILLI);
         return new IndexTransaction(index, indexRetriever, config, Duration.ofMillis(2000L));
     }
 

@@ -45,16 +45,16 @@ public class MetricInstrumentedStoreManager implements KeyColumnValueStoreManage
     public static final String M_CLOSE_MANAGER = "closeManager";
 
 
-    public static final String GLOBAL_PREFIX = "global";
-
     private final KeyColumnValueStoreManager backend;
     private final boolean mergeStoreMetrics;
     private final String mergedMetricsName;
     private final String managerMetricsName;
+    private final String metricsPrefix;
 
-    public MetricInstrumentedStoreManager(KeyColumnValueStoreManager backend, String managerMetricsName,
+    public MetricInstrumentedStoreManager(KeyColumnValueStoreManager backend, final String metricsPrefix, String managerMetricsName,
                                           boolean mergeStoreMetrics, String mergedMetricsName) {
         this.backend = backend;
+        this.metricsPrefix = metricsPrefix;
         this.mergeStoreMetrics = mergeStoreMetrics;
         this.mergedMetricsName = mergedMetricsName;
         this.managerMetricsName = managerMetricsName;
@@ -67,7 +67,7 @@ public class MetricInstrumentedStoreManager implements KeyColumnValueStoreManage
 
     @Override
     public KeyColumnValueStore openDatabase(String name, StoreMetaData.Container metaData) throws BackendException {
-        MetricManager.INSTANCE.getCounter(GLOBAL_PREFIX, managerMetricsName, M_OPEN_DATABASE, M_CALLS).inc();
+        MetricManager.INSTANCE.getCounter(metricsPrefix, managerMetricsName, M_OPEN_DATABASE, M_CALLS).inc();
         return new MetricInstrumentedStore(backend.openDatabase(name, metaData),getMetricsStoreName(name));
     }
 
@@ -94,14 +94,14 @@ public class MetricInstrumentedStoreManager implements KeyColumnValueStoreManage
 
     @Override
     public StoreTransaction beginTransaction(BaseTransactionConfig config) throws BackendException {
-        MetricManager.INSTANCE.getCounter(GLOBAL_PREFIX, managerMetricsName, M_START_TX, M_CALLS).inc();
+        MetricManager.INSTANCE.getCounter(metricsPrefix, managerMetricsName, M_START_TX, M_CALLS).inc();
         return backend.beginTransaction(config);
     }
 
     @Override
     public void close() throws BackendException {
         backend.close();
-        MetricManager.INSTANCE.getCounter(GLOBAL_PREFIX, managerMetricsName, M_CLOSE_MANAGER, M_CALLS).inc();
+        MetricManager.INSTANCE.getCounter(metricsPrefix, managerMetricsName, M_CLOSE_MANAGER, M_CALLS).inc();
     }
 
     @Override

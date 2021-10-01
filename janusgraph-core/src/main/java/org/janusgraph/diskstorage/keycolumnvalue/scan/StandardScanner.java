@@ -14,6 +14,8 @@
 
 package org.janusgraph.diskstorage.keycolumnvalue.scan;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.METRICS_PREFIX;
+
 import com.google.common.base.Preconditions;
 import org.apache.commons.lang3.StringUtils;
 import org.janusgraph.diskstorage.BackendException;
@@ -176,6 +178,7 @@ public class StandardScanner  {
             Preconditions.checkArgument(StringUtils.isNotBlank(dbName),"Need to specify a database to execute against");
             Preconditions.checkNotNull(times,"Need to configure the timestamp provider for this job");
             StandardBaseTransactionConfig.Builder txBuilder = new StandardBaseTransactionConfig.Builder();
+            txBuilder.groupName(graphConfiguration.get(METRICS_PREFIX) + ".scanner");
             txBuilder.timestampProvider(times);
 
             Configuration scanConfig = manager.getFeatures().getScanTxConfig();

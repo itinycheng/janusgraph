@@ -102,6 +102,7 @@ import org.janusgraph.graphdb.types.system.BaseKey;
 import org.janusgraph.graphdb.types.system.BaseRelationType;
 import org.janusgraph.graphdb.types.vertices.JanusGraphSchemaVertex;
 import org.janusgraph.graphdb.util.ExceptionFactory;
+import org.janusgraph.util.stats.MetricManager;
 import org.janusgraph.util.system.IOUtils;
 import org.janusgraph.util.system.TXUtils;
 import org.slf4j.Logger;
@@ -126,6 +127,8 @@ import java.util.function.Predicate;
 import javax.script.Bindings;
 import javax.script.ScriptException;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BASIC_METRICS;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.METRICS_JMX_ENABLED;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.REGISTRATION_TIME;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.REPLACE_INSTANCE_IF_EXISTS;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.SCRIPT_EVAL_ENABLED;
@@ -301,6 +304,9 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
     @Override
     public synchronized void close() throws JanusGraphException {
         try {
+            if (config.getConfiguration().get(BASIC_METRICS) && config.getConfiguration().get(METRICS_JMX_ENABLED)) {
+                MetricManager.INSTANCE.removeJmxReporter();
+            }
             closeInternal();
         } finally {
             removeHook();
@@ -486,7 +492,7 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
             StandardJanusGraphTx consistentTx = null;
             try {
                 consistentTx = StandardJanusGraph.this.newTransaction(new StandardTransactionBuilder(getConfiguration(),
-                        StandardJanusGraph.this, customTxOptions).groupName(GraphDatabaseConfiguration.METRICS_SCHEMA_PREFIX_DEFAULT));
+                        StandardJanusGraph.this, customTxOptions).groupName(config.getMetricsPrefix() + ".sys.schema"));
                 consistentTx.getTxHandle().disableCache();
                 JanusGraphVertex v = Iterables.getOnlyElement(QueryUtil.getVertices(consistentTx, BaseKey.SchemaName, typeName), null);
                 return v != null? ((Number) v.id()).longValue(): null;
@@ -502,7 +508,7 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
             StandardJanusGraphTx consistentTx = null;
             try {
                 consistentTx = StandardJanusGraph.this.newTransaction(new StandardTransactionBuilder(getConfiguration(),
-                        StandardJanusGraph.this, customTxOptions).groupName(GraphDatabaseConfiguration.METRICS_SCHEMA_PREFIX_DEFAULT));
+                        StandardJanusGraph.this, customTxOptions).groupName(config.getMetricsPrefix() + ".sys.schema"));
                 consistentTx.getTxHandle().disableCache();
                 return edgeQuery(schemaId, query, consistentTx.getTxHandle());
             } finally {

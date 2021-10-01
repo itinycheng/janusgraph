@@ -38,7 +38,7 @@ public class KCVSConfigTest extends WritableConfigurationTest {
             return new KCVSConfiguration(new BackendOperation.TransactionalProvider() {
                 @Override
                 public StoreTransaction openTx() throws BackendException {
-                    return manager.beginTransaction(StandardBaseTransactionConfig.of(TimestampProviders.MICRO, manager.getFeatures().getKeyConsistentTxConfig()));
+                    return manager.beginTransaction(StandardBaseTransactionConfig.of("sys", TimestampProviders.MICRO, manager.getFeatures().getKeyConsistentTxConfig()));
                 }
 
                 @Override
