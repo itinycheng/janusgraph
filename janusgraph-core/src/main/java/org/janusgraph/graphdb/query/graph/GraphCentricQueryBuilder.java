@@ -14,6 +14,7 @@
 
 package org.janusgraph.graphdb.query.graph;
 
+import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
 import org.janusgraph.core.Cardinality;
 import org.janusgraph.core.JanusGraphEdge;
@@ -44,6 +45,7 @@ import org.janusgraph.graphdb.query.index.IndexSelectionStrategy;
 import org.janusgraph.graphdb.query.profile.QueryProfiler;
 import org.janusgraph.graphdb.transaction.StandardJanusGraphTx;
 import org.janusgraph.graphdb.util.CloseableIteratorUtils;
+import org.janusgraph.util.stats.MetricManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -260,6 +262,19 @@ public class GraphCentricQueryBuilder implements JanusGraphQuery<GraphCentricQue
     }
 
     public GraphCentricQuery constructQueryWithoutProfile(final ElementCategory resultType) {
+        if (tx.metricsEnabled) {
+            Timer.Context tc =
+                MetricManager.INSTANCE.getTimer(tx.getConfiguration().getGroupName(), "query", "graphConstruct").time();
+            try {
+                return constructQueryWithoutProfile2(resultType);
+            } finally {
+                tc.stop();
+            }
+        }
+        return constructQueryWithoutProfile2(resultType);
+    }
+
+    private GraphCentricQuery constructQueryWithoutProfile2(final ElementCategory resultType) {
         Preconditions.checkNotNull(resultType);
         if (limit == 0) return GraphCentricQuery.emptyQuery(resultType);
 

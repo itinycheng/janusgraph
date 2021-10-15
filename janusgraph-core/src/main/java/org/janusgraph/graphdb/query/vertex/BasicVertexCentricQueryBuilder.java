@@ -16,6 +16,7 @@ package org.janusgraph.graphdb.query.vertex;
 
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.TX_QUERY_CACHE;
 
+import com.codahale.metrics.Timer;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -61,6 +62,7 @@ import org.janusgraph.graphdb.types.system.SystemRelationType;
 import org.janusgraph.util.datastructures.Interval;
 import org.janusgraph.util.datastructures.PointInterval;
 import org.janusgraph.util.datastructures.RangeInterval;
+import org.janusgraph.util.stats.MetricManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -447,7 +449,18 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
     protected BaseVertexCentricQuery constructQuery(RelationCategory returnType) {
         QueryProfiler optProfiler = profiler.addNested(QueryProfiler.OPTIMIZATION);
         optProfiler.startTimer();
-        BaseVertexCentricQuery query = constructQueryWithoutProfile(returnType);
+        BaseVertexCentricQuery query;
+        if (tx.metricsEnabled) {
+            Timer.Context tc =
+                MetricManager.INSTANCE.getTimer(tx.getConfiguration().getGroupName(), "query", "vertexConstruct").time();
+            try {
+                query = constructQueryWithoutProfile(returnType);
+            } finally {
+                tc.stop();
+            }
+        } else {
+            query = constructQueryWithoutProfile(returnType);
+        }
         optProfiler.stopTimer();
         query.observeWith(profiler);
         return query;

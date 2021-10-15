@@ -279,7 +279,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
     private final VertexConstructor externalVertexRetriever;
     private final VertexConstructor internalVertexRetriever;
 
-    private final boolean metricsEnabled;
+    public final boolean metricsEnabled;
 
     public StandardJanusGraphTx(StandardJanusGraph graph, TransactionConfiguration config) {
         Preconditions.checkNotNull(graph);
