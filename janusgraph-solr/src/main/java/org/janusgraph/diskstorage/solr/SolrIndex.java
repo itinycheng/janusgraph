@@ -31,7 +31,10 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.BaseCloudSolrClient;
+import org.apache.solr.client.solrj.impl.CloudHttp2SolrClient;
 import org.apache.solr.client.solrj.impl.CloudSolrClient;
+import org.apache.solr.client.solrj.impl.Http2SolrClient;
 import org.apache.solr.client.solrj.impl.HttpClientUtil;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.impl.Krb5HttpClientBuilder;
@@ -214,6 +217,10 @@ public class SolrIndex implements IndexProvider {
             "If specified, the same solr configSet can be reused for each new Collection that is created in SolrCloud.",
             ConfigOption.Type.MASKABLE, String.class);
 
+    public static final ConfigOption<Boolean> SOLR_USE_HTTP2 = new ConfigOption<>(SOLR_NS, "use-http2",
+        "Use HTTP/2 client",
+        ConfigOption.Type.MASKABLE, true);
+
 
     /** HTTP Configuration */
 
@@ -311,15 +318,27 @@ public class SolrIndex implements IndexProvider {
                         zookeeperUrl[i] = hostAndPort;
                     }
                 }
-                final CloudSolrClient.Builder builder = new CloudSolrClient
-                    .Builder(Arrays.asList(zookeeperUrl), chroot)
-                    .withLBHttpSolrClientBuilder(
-                        new LBHttpSolrClient.Builder()
-                            .withHttpSolrClientBuilder(new HttpSolrClient.Builder().withInvariantParams(clientParams))
-                            .withBaseSolrUrls(config.get(HTTP_URLS))
-                         )
-                    .sendUpdatesOnlyToShardLeaders();
-                final CloudSolrClient cloudServer = builder.build();
+
+                final BaseCloudSolrClient cloudServer;
+                if (config.get(SOLR_USE_HTTP2)) {
+                    final CloudHttp2SolrClient.Builder builder =
+                        new CloudHttp2SolrClient.Builder(Arrays.asList(zookeeperUrl), chroot)
+                            .withHttpClient(new Http2SolrClient.Builder()
+                                .connectionTimeout(config.get(HTTP_CONNECTION_TIMEOUT))
+                                .maxConnectionsPerHost(config.get(HTTP_MAX_CONNECTIONS_PER_HOST))
+                                .build());
+                    cloudServer = builder.build();
+                } else {
+                    final CloudSolrClient.Builder builder =
+                        new CloudSolrClient.Builder(Arrays.asList(zookeeperUrl), chroot)
+                            .withLBHttpSolrClientBuilder(
+                                new LBHttpSolrClient.Builder()
+                                    .withHttpSolrClientBuilder(new HttpSolrClient.Builder().withInvariantParams(clientParams))
+                                    .withBaseSolrUrls(config.get(HTTP_URLS))
+                            )
+                            .sendUpdatesOnlyToShardLeaders();
+                    cloudServer = builder.build();
+                }
                 cloudServer.connect();
                 solrClient = cloudServer;
                 break;
@@ -413,7 +432,7 @@ public class SolrIndex implements IndexProvider {
             return Optional.of(collectionName);
         }
         if (mode == Mode.CLOUD) {
-            final CloudSolrClient client = (CloudSolrClient) solrClient;
+            final BaseCloudSolrClient client = (BaseCloudSolrClient) solrClient;
             try {
                 synchronized (initalizedCollections) {
                     if (initalizedCollections.contains(collectionName)) {
@@ -441,7 +460,7 @@ public class SolrIndex implements IndexProvider {
             return collectionName;
         }
         if (mode==Mode.CLOUD) {
-            final CloudSolrClient client = (CloudSolrClient) solrClient;
+            final BaseCloudSolrClient client = (BaseCloudSolrClient) solrClient;
             try {
                 synchronized (initalizedCollections) {
                     if (!initalizedCollections.contains(collectionName)) {
@@ -482,7 +501,7 @@ public class SolrIndex implements IndexProvider {
     public void delete(final String store) throws BackendException {
         String collection = buildCollectionName(store);
         if (mode == Mode.CLOUD) {
-            final CloudSolrClient client = (CloudSolrClient) solrClient;
+            final BaseCloudSolrClient client = (BaseCloudSolrClient) solrClient;
             try {
                 if (!checkIfCollectionExists(client, collection)) {
                     final CollectionAdminRequest.Delete deleteRequest = CollectionAdminRequest.deleteCollection(collection);
@@ -1212,7 +1231,7 @@ public class SolrIndex implements IndexProvider {
         }
         try {
             logger.debug("Clearing storage from Solr: {}", solrClient);
-            final ZkStateReader zkStateReader = ((CloudSolrClient) solrClient).getZkStateReader();
+            final ZkStateReader zkStateReader = ((BaseCloudSolrClient) solrClient).getZkStateReader();
             zkStateReader.forciblyRefreshAllClusterStateSlow();
             final ClusterState clusterState = zkStateReader.getClusterState();
             for (final String collection : clusterState.getCollectionsMap().keySet()) {
@@ -1352,7 +1371,7 @@ public class SolrIndex implements IndexProvider {
     @Override
     public boolean exists() throws BackendException {
         if (mode!=Mode.CLOUD) throw new UnsupportedOperationException("Operation only supported for SolrCloud");
-        final CloudSolrClient server = (CloudSolrClient) solrClient;
+        final BaseCloudSolrClient server = (BaseCloudSolrClient) solrClient;
         try {
             final ZkStateReader zkStateReader = server.getZkStateReader();
             zkStateReader.forciblyRefreshAllClusterStateSlow();
@@ -1413,7 +1432,7 @@ public class SolrIndex implements IndexProvider {
         return new TemporaryBackendException("Unable to complete query on Solr.", solrException);
     }
 
-    private static void createCollectionIfNotExists(CloudSolrClient client, Configuration config, String collection)
+    private static void createCollectionIfNotExists(BaseCloudSolrClient client, Configuration config, String collection)
         throws IOException, SolrServerException, KeeperException, InterruptedException, BackendException {
         if (!checkIfCollectionExists(client, collection)) {
             final Integer numShards = config.get(NUM_SHARDS);
@@ -1451,7 +1470,7 @@ public class SolrIndex implements IndexProvider {
     /**
      * Checks if the collection has already been created in Solr.
      */
-    private static boolean checkIfCollectionExists(CloudSolrClient server, String collection) throws KeeperException, InterruptedException {
+    private static boolean checkIfCollectionExists(BaseCloudSolrClient server, String collection) throws KeeperException, InterruptedException {
         final ZkStateReader zkStateReader = server.getZkStateReader();
         zkStateReader.forceUpdateCollection(collection);
         final ClusterState clusterState = zkStateReader.getClusterState();
@@ -1461,7 +1480,7 @@ public class SolrIndex implements IndexProvider {
     /**
      * Wait for all the collection shards to be ready.
      */
-    private static void waitForRecoveriesToFinish(CloudSolrClient server, String collection) throws KeeperException, InterruptedException, BackendException {
+    private static void waitForRecoveriesToFinish(BaseCloudSolrClient server, String collection) throws KeeperException, InterruptedException, BackendException {
         final ZkStateReader zkStateReader = server.getZkStateReader();
         Duration maxAwait = Duration.ofMinutes(10);
         long maxTime = System.currentTimeMillis() + maxAwait.toMillis();

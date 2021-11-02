@@ -266,6 +266,7 @@ Solr index configuration
 | index.[X].solr.replication-factor | NRT Replication factor for a collection. This applies when creating a new collection which is only supported under the SolrCloud operation mode. | Integer | 1 | GLOBAL_OFFLINE |
 | index.[X].solr.tlog-replication-factor | TLOG Replication factor for a collection. This applies when creating a new collection which is only supported under the SolrCloud operation mode. | Integer | 0 | GLOBAL_OFFLINE |
 | index.[X].solr.ttl_field | Name of the TTL field for Solr collections. | String | ttl | GLOBAL_OFFLINE |
+| index.[X].solr.use-http2 | Use HTTP/2 client | Boolean | true | MASKABLE |
 | index.[X].solr.wait-searcher | When mutating - wait for the index to reflect new mutations before returning. This can have a negative impact on performance. | Boolean | false | LOCAL |
 | index.[X].solr.zookeeper-url | URL of the Zookeeper instance coordinating the SolrCloud cluster | String[] | localhost:2181 | MASKABLE |
 
