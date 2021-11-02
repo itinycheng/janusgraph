@@ -301,6 +301,11 @@ public class SolrIndex implements IndexProvider {
             logger.debug("KERBEROS_ENABLED type is " + KERBEROS_ENABLED.getType().name());
         }
         final ModifiableSolrParams clientParams = new ModifiableSolrParams();
+        clientParams.add(HttpClientUtil.PROP_ALLOW_COMPRESSION, config.get(HTTP_ALLOW_COMPRESSION).toString());
+        clientParams.add(HttpClientUtil.PROP_CONNECTION_TIMEOUT, config.get(HTTP_CONNECTION_TIMEOUT).toString());
+        clientParams.add(HttpClientUtil.PROP_MAX_CONNECTIONS_PER_HOST, config.get(HTTP_MAX_CONNECTIONS_PER_HOST).toString());
+        clientParams.add(HttpClientUtil.PROP_MAX_CONNECTIONS, config.get(HTTP_GLOBAL_MAX_CONNECTIONS).toString());
+
         switch (mode) {
             case CLOUD:
                 final String[] zookeeperUrl = config.get(SolrIndex.ZOOKEEPER_URL);
@@ -333,7 +338,8 @@ public class SolrIndex implements IndexProvider {
                         new CloudSolrClient.Builder(Arrays.asList(zookeeperUrl), chroot)
                             .withLBHttpSolrClientBuilder(
                                 new LBHttpSolrClient.Builder()
-                                    .withHttpSolrClientBuilder(new HttpSolrClient.Builder().withInvariantParams(clientParams))
+                                    .withHttpSolrClientBuilder(new HttpSolrClient.Builder().withInvariantParams(clientParams)
+                                                                   .allowCompression(config.get(HTTP_ALLOW_COMPRESSION)))
                                     .withBaseSolrUrls(config.get(HTTP_URLS))
                             )
                             .sendUpdatesOnlyToShardLeaders();
@@ -343,10 +349,6 @@ public class SolrIndex implements IndexProvider {
                 solrClient = cloudServer;
                 break;
             case HTTP:
-                clientParams.add(HttpClientUtil.PROP_ALLOW_COMPRESSION, config.get(HTTP_ALLOW_COMPRESSION).toString());
-                clientParams.add(HttpClientUtil.PROP_CONNECTION_TIMEOUT, config.get(HTTP_CONNECTION_TIMEOUT).toString());
-                clientParams.add(HttpClientUtil.PROP_MAX_CONNECTIONS_PER_HOST, config.get(HTTP_MAX_CONNECTIONS_PER_HOST).toString());
-                clientParams.add(HttpClientUtil.PROP_MAX_CONNECTIONS, config.get(HTTP_GLOBAL_MAX_CONNECTIONS).toString());
                 final HttpClient client = HttpClientUtil.createClient(clientParams);
                 solrClient = new LBHttpSolrClient.Builder()
                     .withHttpClient(client)
