@@ -34,7 +34,6 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BaseCloudSolrClient;
 import org.apache.solr.client.solrj.impl.CloudHttp2SolrClient;
 import org.apache.solr.client.solrj.impl.CloudSolrClient;
-import org.apache.solr.client.solrj.impl.Http2SolrClient;
 import org.apache.solr.client.solrj.impl.HttpClientUtil;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.impl.Krb5HttpClientBuilder;
@@ -326,10 +325,11 @@ public class SolrIndex implements IndexProvider {
 
                 final BaseCloudSolrClient cloudServer;
                 if (config.get(SOLR_USE_HTTP2)) {
-                    final CloudHttp2SolrClient.Builder builder =
-                        new CloudHttp2SolrClient.Builder(Arrays.asList(zookeeperUrl), chroot)
-                            .withHttpClient(new Http2SolrClient.Builder()
+                    final CompressCloudHttp2SolrClient.Builder builder =
+                        new CompressCloudHttp2SolrClient.Builder(Arrays.asList(zookeeperUrl), chroot)
+                            .withHttpClient(new CompressHttp2SolrClient.Builder()
                                 .connectionTimeout(config.get(HTTP_CONNECTION_TIMEOUT))
+                                .withGzip(config.get(HTTP_ALLOW_COMPRESSION))
                                 .maxConnectionsPerHost(config.get(HTTP_MAX_CONNECTIONS_PER_HOST))
                                 .build());
                     cloudServer = builder.build();
@@ -338,8 +338,9 @@ public class SolrIndex implements IndexProvider {
                         new CloudSolrClient.Builder(Arrays.asList(zookeeperUrl), chroot)
                             .withLBHttpSolrClientBuilder(
                                 new LBHttpSolrClient.Builder()
-                                    .withHttpSolrClientBuilder(new HttpSolrClient.Builder().withInvariantParams(clientParams)
-                                                                   .allowCompression(config.get(HTTP_ALLOW_COMPRESSION)))
+                                    .withHttpSolrClientBuilder(new HttpSolrClient.Builder()
+                                        .withInvariantParams(clientParams)
+                                        .allowCompression(config.get(HTTP_ALLOW_COMPRESSION)))
                                     .withBaseSolrUrls(config.get(HTTP_URLS))
                             )
                             .sendUpdatesOnlyToShardLeaders();
