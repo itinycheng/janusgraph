@@ -1194,6 +1194,7 @@ public abstract class IndexProviderTest {
         }
         tx.commit();
 
+        tx = openTx();
         // check every indexed type is still in the index
         assertEquals(1, tx.queryStream(new IndexQuery(store, PredicateCondition.of(DATE, Cmp.EQUAL, Instant.ofEpochSecond(1)))).count());
         assertEquals(1, tx.queryStream(new IndexQuery(store, PredicateCondition.of(LOCATION, Geo.WITHIN, Geoshape.box(latitude-1L, longitude-1, latitude+1, longitude+1)))).count());

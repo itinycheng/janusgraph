@@ -1219,24 +1219,33 @@ public class LuceneIndex implements IndexProvider {
         private final BaseTransactionConfig config;
         private final Set<String> updatedStores = Sets.newHashSet();
         private final Map<String, IndexSearcher> searchers = new HashMap<>(4);
+        private final ReentrantLock lock = new ReentrantLock();
+        private volatile boolean isOpen = true;
 
         private Transaction(BaseTransactionConfig config) {
             this.config = config;
         }
 
         private synchronized IndexSearcher getSearcher(String store) throws BackendException {
+            Preconditions.checkState(isOpen, "Lucene Transaction already closed");
             IndexSearcher searcher = searchers.get(store);
             if (searcher == null) {
+                lock.lock();
+                searcher = searchers.get(store);
                 final IndexReader reader;
                 try {
-                    reader = DirectoryReader.open(getStoreDirectory(store));
-                    searcher = new IndexSearcher(reader);
+                    if (searcher == null) {
+                        reader = DirectoryReader.open(getStoreDirectory(store));
+                        searcher = new IndexSearcher(reader);
+                    }
                 } catch (final IndexNotFoundException e) {
                     searcher = null;
                 } catch (final IOException e) {
                     throw new PermanentBackendException("Could not open index reader on store: " + store, e);
+                } finally {
+                    searchers.put(store, searcher);
+                    lock.unlock();
                 }
-                searchers.put(store, searcher);
             }
             return searcher;
         }
@@ -1257,12 +1266,16 @@ public class LuceneIndex implements IndexProvider {
         }
 
         private void close() throws BackendException {
+            this.isOpen = false;
+            lock.lock();
             try {
                 for (final IndexSearcher searcher : searchers.values()) {
                     if (searcher != null) searcher.getIndexReader().close();
                 }
             } catch (final IOException e) {
                 throw new PermanentBackendException("Could not close searcher", e);
+            } finally {
+                lock.unlock();
             }
         }
 
