@@ -53,6 +53,7 @@ import org.apache.solr.common.cloud.Slice;
 import org.apache.solr.common.cloud.ZkStateReader;
 import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
+import org.apache.solr.common.params.UpdateParams;
 import org.apache.zookeeper.KeeperException;
 import org.janusgraph.core.Cardinality;
 import org.janusgraph.core.JanusGraphElement;
@@ -217,7 +218,7 @@ public class SolrIndex implements IndexProvider {
 
     public static final ConfigOption<Boolean> SOLR_USE_HTTP2 = new ConfigOption<>(SOLR_NS, "use-http2",
         "Use HTTP/2 client",
-        ConfigOption.Type.MASKABLE, true);
+        ConfigOption.Type.MASKABLE, false);
 
 
     /** HTTP Configuration */
@@ -248,6 +249,10 @@ public class SolrIndex implements IndexProvider {
 
     public static final ConfigOption<Boolean> DISABLE_VERSION = new ConfigOption<>(SOLR_NS, "disable-version",
         "Disable version",
+        ConfigOption.Type.LOCAL, true);
+
+    public static final ConfigOption<Boolean> DISABLE_OVERWRITE = new ConfigOption<>(SOLR_NS, "disable-overwrite",
+        "Disable overwrite",
         ConfigOption.Type.LOCAL, true);
 
     /** Security Configuration */
@@ -281,6 +286,7 @@ public class SolrIndex implements IndexProvider {
     private final String indexName;
     private final Set<String> initalizedCollections = new HashSet<>();
     private final boolean disableVersion;
+    private final boolean disableOverwrite;
 
     public SolrIndex(final Configuration config) throws BackendException {
         Preconditions.checkArgument(config!=null);
@@ -294,6 +300,7 @@ public class SolrIndex implements IndexProvider {
         ttlField = config.get(TTL_FIELD);
         waitSearcher = config.get(WAIT_SEARCHER);
         disableVersion = config.get(DISABLE_VERSION);
+        disableOverwrite = config.get(DISABLE_OVERWRITE);
 
         if (kerberosEnabled) {
             logger.debug("Kerberos is enabled. Configuring SOLR for Kerberos.");
@@ -1429,6 +1436,9 @@ public class SolrIndex implements IndexProvider {
         final UpdateRequest req = new UpdateRequest();
         if (disableVersion) {
             req.setParam(CommonParams.VERSION_FIELD, "0");
+        }
+        if (disableOverwrite) {
+            req.setParam(UpdateParams.OVERWRITE, "false");
         }
         if(waitSearcher) {
             req.setAction(UpdateRequest.ACTION.COMMIT, true, true);
