@@ -94,11 +94,17 @@ public class JanusGraphManager implements GraphManager {
     }
 
     public void configureGremlinExecutor(GremlinExecutor gremlinExecutor) {
+        configureGremlinExecutor(gremlinExecutor, true);
+    }
+
+    public void configureGremlinExecutor(GremlinExecutor gremlinExecutor, boolean autoBind) {
         this.gremlinExecutor = gremlinExecutor;
-        final ScheduledExecutorService bindExecutor = Executors.newScheduledThreadPool(1);
-        // Dynamically created graphs created with the ConfiguredGraphFactory are
-        // bound across all nodes in the cluster and in the face of server restarts
-        bindExecutor.scheduleWithFixedDelay(new GremlinExecutorGraphBinder(this, this.gremlinExecutor), 0, 20L, TimeUnit.SECONDS);
+        if (autoBind) {
+            final ScheduledExecutorService bindExecutor = Executors.newScheduledThreadPool(1);
+            // Dynamically created graphs created with the ConfiguredGraphFactory are
+            // bound across all nodes in the cluster and in the face of server restarts
+            bindExecutor.scheduleWithFixedDelay(new GremlinExecutorGraphBinder(this, this.gremlinExecutor), 0, 20L, TimeUnit.SECONDS);
+        }
     }
 
     private class GremlinExecutorGraphBinder implements Runnable {
@@ -115,7 +121,7 @@ public class JanusGraphManager implements GraphManager {
             ConfiguredGraphFactory.getGraphNames().forEach(it -> {
                 try {
                     final Graph graph = ConfiguredGraphFactory.open(it);
-                    updateTraversalSource(it, graph, this.gremlinExecutor, this.graphManager);
+                    updateTraversalSource(it, graph);
                 } catch (Exception e) {
                     // cannot open graph, do nothing
                     log.error(String.format("Failed to open graph %s with the following error:\n %s.\n" +
@@ -244,20 +250,15 @@ public class JanusGraphManager implements GraphManager {
         return graphs.remove(gName);
     }
 
-    private void updateTraversalSource(String graphName, Graph graph){
+    private void updateTraversalSource(String graphName, Graph graph) {
         if (null != gremlinExecutor) {
-            updateTraversalSource(graphName, graph, gremlinExecutor, this);
+            final GremlinScriptEngineManager scriptEngineManager = gremlinExecutor.getScriptEngineManager();
+            scriptEngineManager.put(graphName, graph);
+            String traversalName = ConfiguredGraphFactory.toTraversalSourceName(graphName);
+            TraversalSource traversalSource = graph.traversal();
+            scriptEngineManager.put(traversalName, traversalSource);
+            putTraversalSource(traversalName, traversalSource);
         }
-    }
-
-    private void updateTraversalSource(String graphName, Graph graph, GremlinExecutor gremlinExecutor,
-                                       JanusGraphManager graphManager){
-        final GremlinScriptEngineManager scriptEngineManager = gremlinExecutor.getScriptEngineManager();
-        scriptEngineManager.put(graphName, graph);
-        String traversalName = ConfiguredGraphFactory.toTraversalSourceName(graphName);
-        TraversalSource traversalSource = graph.traversal();
-        scriptEngineManager.put(traversalName, traversalSource);
-        graphManager.putTraversalSource(traversalName, traversalSource);
     }
 
     private void removeGremlinScriptEngineBinding(String key) {
