@@ -45,8 +45,7 @@ class StandardScannerExecutor extends AbstractFuture<ScanMetrics> implements Sca
     private static final Logger log =
             LoggerFactory.getLogger(StandardScannerExecutor.class);
 
-    private static final int TIMEOUT_MS = 180000; // 3 min
-    private static final int PROCESSOR_TIMEOUT_MIN = 10;
+    private static final int TIMEOUT_MS = 1800000; // 30 min
     static final int TIME_PER_TRY = 10; // 10 milliseconds
 
     private final ScanJob job;
@@ -141,7 +140,7 @@ class StandardScannerExecutor extends AbstractFuture<ScanMetrics> implements Sca
             for (Processor processor : processors) {
                 processor.finish();
             }
-            if (!Threads.waitForCompletion(processors,TIMEOUT_MS)) log.error("Processor did not terminate in time");
+            if (!Threads.waitForCompletion(processors,TIMEOUT_MS)) log.error("Processor did not terminate in time (" + TIMEOUT_MS + ")");
 
             cleanup();
             try {
@@ -165,7 +164,16 @@ class StandardScannerExecutor extends AbstractFuture<ScanMetrics> implements Sca
                 setException(e);
             }
         } finally {
-            Threads.terminate(processors);
+            for (Processor processor : processors) {
+                if (processor != null && processor.isAlive()) {
+                    if (storeFeatures.supportsInterruption()) {
+                        processor.interrupt();
+                    } else {
+                        log.warn("Store does not support interruption, so processor thread cannot be interrupted");
+                        processor.finished = true;
+                    }
+                }
+            }
             cleanupSilent();
         }
     }
