@@ -240,7 +240,10 @@ public class FulgoraGraphComputer implements JanusGraphComputer {
         JanusGraphManagement mgmt = graph.openManagement();
         try {
             for (VertexComputeKey vertexComputeKey : vertexProgram.getVertexComputeKeys()) {
-                mgmt.getOrCreatePropertyKey(vertexComputeKey.getKey(), Object.class);
+
+                if (!mgmt.containsPropertyKey(vertexComputeKey.getKey())) {
+                    mgmt.makePropertyKey(vertexComputeKey.getKey()).dataType(Object.class).make();
+                }
             }
             mgmt.commit();
         } finally {
