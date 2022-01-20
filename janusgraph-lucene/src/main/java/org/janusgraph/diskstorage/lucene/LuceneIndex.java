@@ -1007,10 +1007,9 @@ public class LuceneIndex implements IndexProvider {
 
     private long executeCount(IndexSearcher searcher, Query query) throws IOException {
         final long time = System.currentTimeMillis();
-        // We ignore offset and limit for totals
-        final TopDocs docs = searcher.search(query, 1);
-        log.debug("Executed query [{}] in {} ms", query, System.currentTimeMillis() - time);
-        return docs.totalHits.value;
+        final long total = searcher.count(q);
+        log.debug("Executed query [{}] in {} ms", q, System.currentTimeMillis() - time);
+        return total;
     }
 
     private SortField.Type sortFieldType(Class fieldType) {
@@ -1076,11 +1075,9 @@ public class LuceneIndex implements IndexProvider {
             final long time = System.currentTimeMillis();
             // Lucene doesn't like limits of 0.  Also, it doesn't efficiently build a total list.
             query.setLimit(1);
-            // We ignore offset and limit for totals
-            SingleDocumentCollector collector = new SingleDocumentCollector();
-            searcher.search(q, collector);
+            final long total = searcher.count(q);
             log.debug("Executed query [{}] in {} ms", q, System.currentTimeMillis() - time);
-            return collector.numDocs;
+            return total;
         } catch (final IOException e) {
             throw new TemporaryBackendException("Could not execute Lucene query", e);
         }
