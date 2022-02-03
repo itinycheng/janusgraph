@@ -155,10 +155,11 @@ public class OrderList implements Comparator<JanusGraphElement>, Iterable<OrderL
         public int compare(JanusGraphElement o1, JanusGraphElement o2) {
             Object v1 = o1.valueOrNull(key);
             Object v2 = o2.valueOrNull(key);
+            boolean nullFirst = order == Order.ASC;
             if (v1 == null || v2 == null) {
                 if (v1 == null && v2 == null) return 0;
-                else if (v1 == null) return 1;
-                else return -1; //v2==null
+                else if (v1 == null) return nullFirst ? -1 : 1;
+                else return nullFirst ? 1 : -1; //v2==null
             } else {
                 return order.modulateNaturalOrder(((Comparable) v1).compareTo(v2));
             }

@@ -109,6 +109,7 @@ import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -3242,6 +3243,30 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
 
     }
 
+    @Test
+    public void testOrderByWithNull() {
+        final PropertyKey age = makeKey("age", Integer.class);
+        final JanusGraphIndex mixed = mgmt.buildIndex("mixed", Vertex.class).addKey(age).buildMixedIndex(INDEX);
+        finishSchema();
+
+        final Vertex v1 = tx.addVertex("age", 1);
+        final Vertex v2 = tx.addVertex("age", 2);
+        tx.addVertex();
+        tx.addVertex();
+        tx.commit();
+
+        List<Vertex> ascList = graph.traversal().V().order().by(ORDER_AGE_ASC).toList();
+        assertEquals(4, ascList.size());
+        assertEquals(v1, ascList.get(2));
+        assertEquals(v2, ascList.get(3));
+
+        List<Vertex> descList = graph.traversal().V().order().by(ORDER_AGE_DESC).toList();
+        assertEquals(4, descList.size());
+        assertEquals(v2, descList.get(0));
+        assertEquals(v1, descList.get(1));
+    }
+
+    @Disabled
     @RepeatedIfExceptionsTest(repeats = 4, minSuccess = 2)
     public void shouldUpdateIndexFieldsAfterIndexModification() throws InterruptedException, ExecutionException {
         clopen(option(FORCE_INDEX_USAGE), true, option(LOG_READ_INTERVAL, MANAGEMENT_LOG), Duration.ofMillis(5000));

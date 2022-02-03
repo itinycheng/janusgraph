@@ -14,7 +14,7 @@
 
 package org.janusgraph.graphdb.util;
 
-import org.apache.tinkerpop.gremlin.process.traversal.step.util.ElementValueComparator;
+import org.apache.tinkerpop.gremlin.process.traversal.step.util.ElementFunctionComparator;
 import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.util.CloseableIterator;
 import org.apache.tinkerpop.gremlin.util.function.MultiComparator;
@@ -45,7 +45,9 @@ public class MultiDistinctOrderedIterator<E extends Element> implements Closeabl
         this.limit = highLimit;
         this.singleIterator = iterators.size() == 1;
         final List<Comparator<E>> comp = new ArrayList<>();
-        orders.forEach(o -> comp.add(new ElementValueComparator(o.key, o.order)));
+        orders.forEach(o -> comp.add(
+            new ElementFunctionComparator(e -> ((Element) e).property(o.key).orElse(null), o.order)
+        ));
         Comparator<E> comparator = new MultiComparator<>(comp);
         for (int i = 0; i < iterators.size(); i++) {
             this.iterators.put(i, iterators.get(i));
