@@ -146,6 +146,9 @@ public class NumericTranslationQueryParser extends QueryParser {
     }
 
     private Class<?> getKeyDataType(final String field) {
+        if (field.endsWith(LuceneIndex.STRING_SUFFIX)) {
+            return String.class;
+        }
         KeyInformation keyInformation = storeRetriever.get(field);
         if (keyInformation == null) {
             log.warn(String.format("Could not find key information for: %s", field));
