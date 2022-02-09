@@ -144,12 +144,12 @@ public class VertexMapJob implements VertexScanJob {
 
         private Executor(JanusGraph graph, VertexMapJob job) {
             super(graph, job);
-            open(this.graph.get().getConfiguration().getConfiguration());
+            // open(this.graph.get().getConfiguration().getConfiguration());
         }
 
         private Executor(final Executor copy) {
             super(copy);
-            open(this.graph.get().getConfiguration().getConfiguration());
+            // open(this.graph.get().getConfiguration().getConfiguration());
         }
 
         @Override
@@ -159,15 +159,16 @@ public class VertexMapJob implements VertexScanJob {
             return queries;
         }
 
-        @Override
-        public void workerIterationStart(Configuration jobConfig, Configuration graphConfig, ScanMetrics metrics) {
-            job.workerIterationStart(graph.get(), jobConfig, metrics);
-        }
 
-        @Override
-        public void workerIterationEnd(ScanMetrics metrics) {
-            job.workerIterationEnd(metrics);
-        }
+        // @Override
+        // public void workerIterationStart(Configuration jobConfig, Configuration graphConfig, ScanMetrics metrics) {
+        //     job.workerIterationStart(graph.get(), jobConfig, metrics);
+        // }
+
+        // @Override
+        // public void workerIterationEnd(ScanMetrics metrics) {
+        //     job.workerIterationEnd(metrics);
+        // }
 
         @Override
         public Executor clone() {
