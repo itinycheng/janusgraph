@@ -561,7 +561,7 @@ public class LuceneIndex implements IndexProvider {
                 }
             } else if (AttributeUtils.isString(dataType)) {
                 final Mapping mapping = Mapping.getMapping(ki);
-                if ((mapping == Mapping.STRING || mapping == Mapping.TEXTSTRING) && isPossibleSortIndex) {
+                if ((mapping == Mapping.STRING || (mapping == Mapping.TEXTSTRING && isDualFieldName(fieldName))) && isPossibleSortIndex) {
                     fields.add(new SortedDocValuesField(fieldName, new BytesRef(field.stringValue())));
                 }
             } else if (AttributeUtils.isGeo(dataType)) {
