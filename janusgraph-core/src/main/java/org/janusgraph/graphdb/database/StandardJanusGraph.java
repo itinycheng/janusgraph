@@ -901,6 +901,8 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
                 } catch (Throwable e) {
                     //[FAILURE] Primary persistence failed => abort and escalate exception, nothing should have been persisted
                     log.error("Could not commit transaction ["+transactionId+"] due to storage exception in system-commit",e);
+                    // Clean up local locks
+                    schemaMutator.rollback();
                     throw e;
                 }
             }
