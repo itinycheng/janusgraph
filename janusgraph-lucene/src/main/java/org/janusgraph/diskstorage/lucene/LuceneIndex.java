@@ -60,7 +60,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.spatial.SpatialStrategy;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -962,19 +961,15 @@ public class LuceneIndex implements IndexProvider {
     }
 
     private void search(IndexSearcher searcher, Query query, Sort sort, int offset, int limit, SearchCallback callback) throws IOException {
+        TopDocs docs;
         if (sort == null) {
-            SimpleDocumentCollector collector = new SimpleDocumentCollector(limit, true);
-            searcher.search(query, collector);
-            for (int i = offset; i < collector.docs.size(); i++) {
-                final IndexableField field = searcher.doc(collector.docs.get(i), FIELDS_TO_LOAD).getField(DOCID);
-                callback.document(field == null ? null : field.stringValue(), collector.scores.get(i));
-            }
+            docs = searcher.search(query, limit);
         } else {
-            TopFieldDocs docs = searcher.search(query, limit, sort);
-            for (int i = offset; i < docs.scoreDocs.length; i++) {
-                final IndexableField field = searcher.doc(docs.scoreDocs[i].doc, FIELDS_TO_LOAD).getField(DOCID);
-                callback.document(field == null ? null : field.stringValue(), docs.scoreDocs[i].score);
-            }
+            docs = searcher.search(query, limit, sort);
+        }
+        for (int i = offset; i < docs.scoreDocs.length; i++) {
+            final IndexableField field = searcher.doc(docs.scoreDocs[i].doc, FIELDS_TO_LOAD).getField(DOCID);
+            callback.document(field == null ? null : field.stringValue(), docs.scoreDocs[i].score);
         }
     }
 
