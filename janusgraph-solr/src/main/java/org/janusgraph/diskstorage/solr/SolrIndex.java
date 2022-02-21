@@ -253,7 +253,7 @@ public class SolrIndex implements IndexProvider {
 
     public static final ConfigOption<Boolean> DISABLE_OVERWRITE = new ConfigOption<>(SOLR_NS, "disable-overwrite",
         "Disable overwrite",
-        ConfigOption.Type.LOCAL, true);
+        ConfigOption.Type.LOCAL, false);
 
     /** Security Configuration */
 
