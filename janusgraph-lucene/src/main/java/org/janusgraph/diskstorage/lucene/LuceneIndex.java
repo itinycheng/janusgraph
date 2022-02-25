@@ -14,6 +14,9 @@
 
 package org.janusgraph.diskstorage.lucene;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_NS;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.QUERY_NS;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
@@ -83,6 +86,8 @@ import org.janusgraph.diskstorage.BaseTransactionConfig;
 import org.janusgraph.diskstorage.BaseTransactionConfigurable;
 import org.janusgraph.diskstorage.PermanentBackendException;
 import org.janusgraph.diskstorage.TemporaryBackendException;
+import org.janusgraph.diskstorage.configuration.ConfigNamespace;
+import org.janusgraph.diskstorage.configuration.ConfigOption;
 import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.indexing.IndexEntry;
 import org.janusgraph.diskstorage.indexing.IndexFeatures;
@@ -127,10 +132,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
@@ -181,6 +189,14 @@ public class LuceneIndex implements IndexProvider {
      * lazy cache for the delegating analyzers used for writing or querrying for each store
      */
     private final Map<String, LuceneCustomAnalyzer> delegatingAnalyzers = new ConcurrentHashMap<>();
+
+    public static final ConfigOption<Boolean> DISABLE_SCORE = new ConfigOption<>(QUERY_NS,"lucene-disable-score",
+        "Disable sort by score",
+        ConfigOption.Type.LOCAL, false);
+
+    public static final ConfigOption<Boolean> USE_STREAM = new ConfigOption<>(QUERY_NS,"lucene-stream",
+        "Use stream for results",
+        ConfigOption.Type.LOCAL, true);
 
     public LuceneIndex(Configuration config) {
         final String dir = config.get(GraphDatabaseConfiguration.INDEX_DIRECTORY);
@@ -627,6 +643,8 @@ public class LuceneIndex implements IndexProvider {
         final SearchParams searchParams = convertQuery(query.getCondition(), information.get(store), delegatingAnalyzer);
 
         try {
+            boolean disableScore = ((Transaction) tx).getConfiguration().getCustomOption(DISABLE_SCORE);
+            boolean useStream = ((Transaction) tx).getConfiguration().getCustomOption(USE_STREAM);
             final IndexSearcher searcher = ((Transaction) tx).getSearcher(query.getStore());
             if (searcher == null) {
                 return Collections.unmodifiableList(new ArrayList<String>()).stream(); //Index does not yet exist
@@ -642,11 +660,7 @@ public class LuceneIndex implements IndexProvider {
             if (!query.getOrder().isEmpty()) {
                 sort = getSortOrder(query.getOrder(), information.get(store));
             }
-
-            final List<String> result = new ArrayList<>();
-            search(searcher, q, sort, 0, limit, (elementId, score) -> result.add(elementId));
-            log.debug("Executed query [{}] in {} ms", q, System.currentTimeMillis() - time);
-            return result.stream();
+            return searchStream(searcher, q, sort, 0, limit, (elementId, score) -> elementId, disableScore, useStream);
         } catch (final IOException e) {
             throw new TemporaryBackendException("Could not execute Lucene query", e);
         }
@@ -932,6 +946,8 @@ public class LuceneIndex implements IndexProvider {
         }
 
         try {
+            boolean disableScore = ((Transaction) tx).getConfiguration().getCustomOption(DISABLE_SCORE);
+            boolean useStream = ((Transaction) tx).getConfiguration().getCustomOption(USE_STREAM);
             final IndexSearcher searcher = ((Transaction) tx).getSearcher(query.getStore());
             if (searcher == null) {
                 return Collections.unmodifiableList(new ArrayList<RawQuery.Result<String>>()).stream(); //Index does not yet exist
@@ -947,29 +963,62 @@ public class LuceneIndex implements IndexProvider {
             if (!query.getOrders().isEmpty()) {
                 sort = getSortOrder(query.getOrders(), information.get(query.getStore()));
             }
-            final List<RawQuery.Result<String>> result = new ArrayList<>();
-            search(searcher, q, sort, offset, adjustedLimit, ((elementId, score) -> result.add(new RawQuery.Result<>(elementId, score))));
-            log.debug("Executed query [{}] in {} ms", q, System.currentTimeMillis() - time);
-            return result.stream();
+            return searchStream(searcher, q, sort, offset, adjustedLimit, RawQuery.Result::new, disableScore, useStream);
         } catch (final IOException e) {
             throw new TemporaryBackendException("Could not execute Lucene query", e);
         }
     }
 
-    private interface SearchCallback {
-        void document(String elementId, double score);
-    }
-
-    private void search(IndexSearcher searcher, Query query, Sort sort, int offset, int limit, SearchCallback callback) throws IOException {
-        TopDocs docs;
-        if (sort == null) {
-            docs = searcher.search(query, limit);
+    private <T> Stream<T> searchStream(IndexSearcher searcher, Query query, Sort sort, int offset, int limit,
+                                       BiFunction<String, Float, T> convert, boolean disableScore, boolean useStream) throws IOException {
+        Function<Integer, Integer> docExtractor;
+        Function<Integer, Float> scoreExtractor;
+        int totalDocs;
+        if (disableScore) {
+            SimpleDocumentCollector collector = new SimpleDocumentCollector(limit);
+            searcher.search(query, collector);
+            docExtractor = collector.docs::get;
+            scoreExtractor = (idx) -> 0.0f;
+            totalDocs = collector.docs.size();
         } else {
-            docs = searcher.search(query, limit, sort);
+            TopDocs docs;
+            if (sort == null) {
+                docs = searcher.search(query, limit);
+            } else {
+                docs = searcher.search(query, limit, sort);
+            }
+            docExtractor = idx -> docs.scoreDocs[idx].doc;
+            scoreExtractor = (idx) -> docs.scoreDocs[idx].score;
+            totalDocs = docs.scoreDocs.length;
         }
-        for (int i = offset; i < docs.scoreDocs.length; i++) {
-            final IndexableField field = searcher.doc(docs.scoreDocs[i].doc, FIELDS_TO_LOAD).getField(DOCID);
-            callback.document(field == null ? null : field.stringValue(), docs.scoreDocs[i].score);
+
+        AtomicInteger i = new AtomicInteger(offset);
+        final Iterator<T> iterator = new Iterator<T>() {
+
+            @Override
+            public boolean hasNext() {
+                return i.get() < totalDocs;
+            }
+
+            @Override
+            public T next() {
+                final int idx = i.getAndIncrement();
+                final IndexableField field;
+                try {
+                    field = searcher.doc(docExtractor.apply(idx), FIELDS_TO_LOAD).getField(DOCID);
+                    return convert.apply(field == null ? null : field.stringValue(), scoreExtractor.apply(idx));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+        if (useStream) {
+            Iterable<T> iterable = () -> iterator;
+            return StreamSupport.stream(iterable.spliterator(), false);
+        } else {
+            List<T> result = new ArrayList<>();
+            iterator.forEachRemaining(result::add);
+            return result.stream();
         }
     }
 
