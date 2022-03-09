@@ -15,6 +15,8 @@
 package org.janusgraph.graphdb.transaction;
 
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BASIC_METRICS;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.TX_DISABLE_CACHE;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.USE_INDEX_CACHE;
 
 import com.carrotsearch.hppc.LongArrayList;
 import com.google.common.base.Preconditions;
@@ -334,7 +336,8 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         }
 
         // Special case for reindex job -- disable cache
-        if (config.hasPreloadedData() && config.getVertexCacheSize() == 0 && config.getDirtyVertexSize() == 0) {
+
+        if (config.getCustomOption(TX_DISABLE_CACHE) || (config.hasPreloadedData() && config.getVertexCacheSize() == 0 && config.getDirtyVertexSize() == 0)) {
             vertexCache = new VertexCache() {
                 @Override
                 public boolean contains(final long id) {
@@ -1343,7 +1346,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         private Iterator<JanusGraphRelation> getMatchedRelations(final VertexCentricQuery query, final InternalVertex vertex) {
             // Need to filter out self-loops if query only asks for one direction
             return new Iterator<JanusGraphRelation>() {
-                Iterator<InternalRelation> iterator = vertex.getAddedRelations(t -> true).iterator();
+                final Iterator<InternalRelation> iterator = vertex.getAddedRelations(t -> true).iterator();
                 InternalRelation loop = null;
                 InternalRelation current = null;
 
@@ -1549,8 +1552,13 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
                     retrievals.add(limit -> {
                         final JointIndexQuery.Subquery adjustedQuery = subquery.updateLimit(limit);
                         try {
-                            return indexCache.get(adjustedQuery,
-                                () -> QueryProfiler.profile(subquery.getProfiler(), adjustedQuery, q -> indexSerializer.query(q, txHandle).collect(Collectors.toList())));
+                            if (config.getCustomOption(USE_INDEX_CACHE)) {
+                                return indexCache.get(adjustedQuery,
+                                    () -> QueryProfiler.profile(subquery.getProfiler(), adjustedQuery, q -> indexSerializer.query(q, txHandle).collect(Collectors.toList())));
+                            } else {
+                                return QueryProfiler.profile(subquery.getProfiler(), adjustedQuery, q -> indexSerializer.query(q, txHandle).collect(Collectors.toList()));
+                            }
+
                         } catch (Exception e) {
                             throw new JanusGraphException("Could not call index", e);
                         }

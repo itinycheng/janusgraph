@@ -14,6 +14,8 @@
 
 package org.janusgraph.graphdb.relations;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.EDGE_WITH_ADJACENT;
+
 import org.apache.tinkerpop.gremlin.structure.Direction;
 import org.janusgraph.core.JanusGraphEdge;
 import org.janusgraph.core.JanusGraphRelation;
@@ -77,7 +79,11 @@ public class RelationIdentifierUtils {
             dir = Direction.IN;
         }
         VertexCentricQueryBuilder query =
-            ((VertexCentricQueryBuilder) v.query()).noPartitionRestriction().types(type).direction(dir).adjacent(other);
+            ((VertexCentricQueryBuilder) v.query()).noPartitionRestriction().types(type).direction(dir);
+
+        if (((StandardJanusGraphTx) tx).getConfiguration().getCustomOption(EDGE_WITH_ADJACENT)) {
+            query.adjacent(other);
+        }
 
         RelationType internalVertex = ((StandardJanusGraphTx) tx).getExistingRelationType(type.longId());
         if (((InternalRelationType) internalVertex).getConsistencyModifier() != ConsistencyModifier.FORK) {

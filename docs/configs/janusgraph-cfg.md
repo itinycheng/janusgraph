@@ -25,7 +25,9 @@ Configuration options that modify JanusGraph's caching behavior
 | cache.tx-cache-size | Maximum size of the transaction-level cache of recently-used vertices. | Integer | 20000 | MASKABLE |
 | cache.tx-cache-type | Type of the transaction-level cache of recently-used vertices, available:[GUAVA, CAFFEINE] | String | GUAVA | MASKABLE |
 | cache.tx-dirty-size | Initial size of the transaction-level cache of uncommitted dirty vertices. This is a performance hint for write-heavy, performance-sensitive transactional workloads. If set, it should roughly match the median vertices modified per transaction. | Integer | (no default value) | MASKABLE |
+| cache.tx-disable-cache | Disable TX cache | Boolean | false | MASKABLE |
 | cache.tx-query-cache | Use cache for query | Boolean | false | MASKABLE |
+| cache.tx-vertex-cache-type | Vertex cache type. For local storage NOCACHE will be default. Available values DEFAULT, TREEMAP, NOCACHE | String | DEFAULT | MASKABLE |
 
 ### cluster
 Configuration options for multi-machine deployments
@@ -359,6 +361,7 @@ Configuration options for query processing
 | query.batch | Whether traversal queries should be batched when executed against the storage backend. This can lead to significant performance improvement if there is a non-trivial latency to the backend. | Boolean | true | MASKABLE |
 | query.batch-label-prefetch | Whether to do a batched pre-fetch of all properties on adjacent vertices against the storage backend prior to evaluating a has condition against those vertices. Because these vertex properties will be loaded into the transaction-level cache of recently-used vertices when the condition is evaluated this can lead to significant performance improvement if there are many edges to adjacent vertices and there is a non-trivial latency to the backend. | Boolean | false | MASKABLE |
 | query.batch-property-prefetch | Whether to do a batched pre-fetch of all properties on adjacent vertices against the storage backend prior to evaluating a has condition against those vertices. Because these vertex properties will be loaded into the transaction-level cache of recently-used vertices when the condition is evaluated this can lead to significant performance improvement if there are many edges to adjacent vertices and there is a non-trivial latency to the backend. | Boolean | false | MASKABLE |
+| query.edge-with-adjacent | Experimental: Use adjacent vertex for edges querying instead of in memory filter | Boolean | true | MASKABLE |
 | query.fast-property | Whether to pre-fetch all properties on first singular vertex property access. This can eliminate backend calls on subsequent property access for the same vertex at the expense of retrieving all properties at once. This can be expensive for vertices with many properties | Boolean | true | MASKABLE |
 | query.force-index | Whether JanusGraph should throw an exception if a graph query cannot be answered using an index. Doing so limits the functionality of JanusGraph's graph queries but ensures that slow graph queries are avoided on large graphs. Recommended for production use of JanusGraph. | Boolean | false | MASKABLE |
 | query.hard-max-limit | If smart-limit is disabled and no limit is given in the query, query optimizer adds a limit in light of possibly large result sets. It works in the same way as smart-limit except that hard-max-limit is usually a large number. Default value is Integer.MAX_VALUE which effectively disables this behavior. This option does not take effect when smart-limit is enabled. | Integer | 2147483647 | MASKABLE |
@@ -369,6 +372,7 @@ Configuration options for query processing
 | query.optimizer-backend-access | Whether the optimizer should be allowed to fire backend queries during the optimization phase. Allowing these will give the optimizer a chance to find more efficient execution plan but also increase the optimization overhead. | Boolean | true | MASKABLE |
 | query.partition-multiquery | Whether traversal queries will be partitioned into PAGE_SIZE before send by multiquery. | Boolean | false | MASKABLE |
 | query.smart-limit | Whether the query optimizer should try to guess a smart limit for the query to ensure responsiveness in light of possibly large result sets. Those will be loaded incrementally if this option is enabled. | Boolean | false | MASKABLE |
+| query.use-index-cache | Experimental: Disable index cache. Index use stream for iterate on result, so for big scan we may reduce memory consumption | Boolean | true | MASKABLE |
 
 ### schema
 Schema related configuration options

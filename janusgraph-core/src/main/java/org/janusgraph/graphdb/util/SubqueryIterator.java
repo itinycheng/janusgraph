@@ -17,6 +17,8 @@
 
 package org.janusgraph.graphdb.util;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.USE_INDEX_CACHE;
+
 import org.janusgraph.core.JanusGraphElement;
 import org.janusgraph.core.JanusGraphException;
 import org.janusgraph.diskstorage.BackendTransaction;
@@ -51,21 +53,30 @@ public class SubqueryIterator extends CloseableAbstractIterator<JanusGraphElemen
 
     private boolean isTimerRunning;
 
+    private boolean useCache;
+
     public SubqueryIterator(JointIndexQuery.Subquery subQuery, IndexSerializer indexSerializer, BackendTransaction tx,
                             SubqueryCache indexCache, int limit,
                             Function<Object, ? extends JanusGraphElement> function, List<Object> otherResults) {
         this.subQuery = subQuery;
         this.indexCache = indexCache;
+        this.useCache = tx.getBaseTransactionConfig().getCustomOption(USE_INDEX_CACHE);
+
         final List<Object> cacheResponse = indexCache.getIfPresent(subQuery);
         final Stream<?> stream;
         if (cacheResponse != null) {
             stream = cacheResponse.stream();
         } else {
             try {
-                currentIds = new ArrayList<>();
                 profiler = QueryProfiler.startProfile(subQuery.getProfiler(), subQuery);
                 isTimerRunning = true;
-                stream = indexSerializer.query(subQuery, tx).peek(r -> currentIds.add(r));
+                if (useCache) {
+                    currentIds = new ArrayList<>();
+                    stream = indexSerializer.query(subQuery, tx).peek(r -> currentIds.add(r));
+                } else {
+                    stream = indexSerializer.query(subQuery, tx);
+                }
+
             } catch (final Exception e) {
                 throw new JanusGraphException("Could not call index", e);
             }
@@ -100,11 +111,11 @@ public class SubqueryIterator extends CloseableAbstractIterator<JanusGraphElemen
     @Override
     public void close() {
         if (isTimerRunning) {
-            assert currentIds != null;
-            if (!elementIterator.hasNext()) {
+            if (!elementIterator.hasNext() && useCache) {
+                assert currentIds != null;
                 indexCache.put(subQuery, currentIds);
+                profiler.setResultSize(currentIds.size());
             }
-            profiler.setResultSize(currentIds.size());
             profiler.stopTimer();
             isTimerRunning = false;
         }
