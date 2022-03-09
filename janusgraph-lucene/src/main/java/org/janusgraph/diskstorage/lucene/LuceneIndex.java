@@ -14,9 +14,6 @@
 
 package org.janusgraph.diskstorage.lucene;
 
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_NS;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.QUERY_NS;
-
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
@@ -86,7 +83,6 @@ import org.janusgraph.diskstorage.BaseTransactionConfig;
 import org.janusgraph.diskstorage.BaseTransactionConfigurable;
 import org.janusgraph.diskstorage.PermanentBackendException;
 import org.janusgraph.diskstorage.TemporaryBackendException;
-import org.janusgraph.diskstorage.configuration.ConfigNamespace;
 import org.janusgraph.diskstorage.configuration.ConfigOption;
 import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.indexing.IndexEntry;
@@ -140,6 +136,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.QUERY_NS;
+
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
  */
@@ -191,11 +189,13 @@ public class LuceneIndex implements IndexProvider {
     private final Map<String, LuceneCustomAnalyzer> delegatingAnalyzers = new ConcurrentHashMap<>();
 
     public static final ConfigOption<Boolean> DISABLE_SCORE = new ConfigOption<>(QUERY_NS,"lucene-disable-score",
-        "Disable sort by score",
-        ConfigOption.Type.LOCAL, false);
+        "Experimental: Disable sort by score. Default sort by score will be disabled, it is improve performance "
+        + "Decrease time of initialization of org.apache.lucene.search.HitQueue.HitQueue, and decrease memory consumption "
+        + "ScoreDoc[] -> IntArray",
+        ConfigOption.Type.LOCAL, true);
 
     public static final ConfigOption<Boolean> USE_STREAM = new ConfigOption<>(QUERY_NS,"lucene-stream",
-        "Use stream for results",
+        "Experimental: Use stream for results",
         ConfigOption.Type.LOCAL, true);
 
     public LuceneIndex(Configuration config) {
@@ -211,17 +211,21 @@ public class LuceneIndex implements IndexProvider {
 
     private synchronized Directory getStoreDirectory(String store) throws BackendException {
         Preconditions.checkArgument(StringUtils.isAlphanumeric(store), "Invalid store name: %s", store);
-        final String dir = basePath + File.separator + store;
+        final File path = buildStorePath(store);
         try {
-            final File path = new File(dir);
             if ((!path.exists() && !path.mkdirs()) || !path.isDirectory() || !path.canWrite()) {
-                throw new PermanentBackendException("Cannot access or write to directory: " + dir);
+                throw new PermanentBackendException("Cannot access or write to directory: " + path);
             }
             log.debug("Opening store directory [{}]", path);
             return FSDirectory.open(path.toPath());
         } catch (final IOException e) {
-            throw new PermanentBackendException("Could not open directory: " + dir, e);
+            throw new PermanentBackendException("Could not open directory: " + path, e);
         }
+    }
+
+    private File buildStorePath(String store) {
+        final String dir = basePath + File.separator + store;
+        return new File(dir);
     }
 
     private IndexWriter getWriter(String store, KeyInformation.IndexRetriever informations) throws BackendException {
@@ -937,20 +941,19 @@ public class LuceneIndex implements IndexProvider {
 
     @Override
     public Stream<RawQuery.Result<String>> query(RawQuery query, KeyInformation.IndexRetriever information, BaseTransaction tx) throws BackendException {
-        final Query q;
-        try {
-            q = getQueryParser(query.getStore(), information).parse(query.getQuery());
-            // Lucene query parser does not take additional parameters so any parameters on the RawQuery are ignored.
-        } catch (final ParseException e) {
-            throw new PermanentBackendException("Could not parse raw query: " + query.getQuery(), e);
-        }
-
         try {
             boolean disableScore = ((Transaction) tx).getConfiguration().getCustomOption(DISABLE_SCORE);
             boolean useStream = ((Transaction) tx).getConfiguration().getCustomOption(USE_STREAM);
             final IndexSearcher searcher = ((Transaction) tx).getSearcher(query.getStore());
             if (searcher == null) {
                 return Collections.unmodifiableList(new ArrayList<RawQuery.Result<String>>()).stream(); //Index does not yet exist
+            }
+            final Query q;
+            try {
+                q = getQueryParser(query.getStore(), information).parse(query.getQuery());
+                // Lucene query parser does not take additional parameters so any parameters on the RawQuery are ignored.
+            } catch (final ParseException e) {
+                throw new PermanentBackendException("Could not parse raw query: " + query.getQuery(), e);
             }
             final long time = System.currentTimeMillis();
             //TODO: can we make offset more efficient in Lucene?
@@ -963,6 +966,7 @@ public class LuceneIndex implements IndexProvider {
             if (!query.getOrders().isEmpty()) {
                 sort = getSortOrder(query.getOrders(), information.get(query.getStore()));
             }
+            log.debug("Executed query [{}] in {} ms on {}", q, System.currentTimeMillis() - time, query.getStore());
             return searchStream(searcher, q, sort, offset, adjustedLimit, RawQuery.Result::new, disableScore, useStream);
         } catch (final IOException e) {
             throw new TemporaryBackendException("Could not execute Lucene query", e);
@@ -974,7 +978,7 @@ public class LuceneIndex implements IndexProvider {
         Function<Integer, Integer> docExtractor;
         Function<Integer, Float> scoreExtractor;
         int totalDocs;
-        if (disableScore) {
+        if (disableScore && sort == null) {
             SimpleDocumentCollector collector = new SimpleDocumentCollector(limit);
             searcher.search(query, collector);
             docExtractor = collector.docs::get;
@@ -992,17 +996,17 @@ public class LuceneIndex implements IndexProvider {
             totalDocs = docs.scoreDocs.length;
         }
 
-        AtomicInteger i = new AtomicInteger(offset);
+        AtomicInteger currentOffset = new AtomicInteger(offset);
         final Iterator<T> iterator = new Iterator<T>() {
 
             @Override
             public boolean hasNext() {
-                return i.get() < totalDocs;
+                return currentOffset.get() < totalDocs;
             }
 
             @Override
             public T next() {
-                final int idx = i.getAndIncrement();
+                final int idx = currentOffset.getAndIncrement();
                 final IndexableField field;
                 try {
                     field = searcher.doc(docExtractor.apply(idx), FIELDS_TO_LOAD).getField(DOCID);
@@ -1275,7 +1279,7 @@ public class LuceneIndex implements IndexProvider {
                 searcher = searchers.get(store);
                 final IndexReader reader;
                 try {
-                    if (searcher == null) {
+                    if (searcher == null && !isEmpty(buildStorePath(store).toPath())) {
                         reader = DirectoryReader.open(getStoreDirectory(store));
                         searcher = new IndexSearcher(reader);
                     }
@@ -1289,6 +1293,15 @@ public class LuceneIndex implements IndexProvider {
                 }
             }
             return searcher;
+        }
+
+        private boolean isEmpty(Path path) throws IOException {
+            if (Files.isDirectory(path)) {
+                try (DirectoryStream<Path> directory = Files.newDirectoryStream(path)) {
+                    return !directory.iterator().hasNext();
+                }
+            }
+            return false;
         }
 
         public void postCommit() throws BackendException {

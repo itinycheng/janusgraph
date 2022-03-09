@@ -23,6 +23,9 @@ public class SingleDocumentCollector extends SimpleCollector {
     long numDocs = 0;
     private int base = 0;
 
+    public SingleDocumentCollector() {
+    }
+
     public void collect(int doc) {
         this.numDocs++;
         this.docId = doc + this.base;
@@ -30,7 +33,7 @@ public class SingleDocumentCollector extends SimpleCollector {
 
     @Override
     public ScoreMode scoreMode() {
-        return ScoreMode.COMPLETE_NO_SCORES;
+        return ScoreMode.TOP_DOCS;
     }
 
     protected void doSetNextReader(LeafReaderContext context) {
