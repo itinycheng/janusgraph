@@ -21,8 +21,6 @@ import org.apache.tinkerpop.gremlin.structure.Direction;
 import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.Property;
 import org.janusgraph.core.Cardinality;
-import org.janusgraph.core.JanusGraphRelation;
-import org.janusgraph.core.JanusGraphVertexProperty;
 import org.janusgraph.core.PropertyKey;
 import org.janusgraph.core.schema.ConsistencyModifier;
 import org.janusgraph.core.schema.Mapping;
@@ -61,14 +59,14 @@ public class TypeUtil {
         }
     }
 
-    public static boolean hasSimpleInternalVertexKeyIndex(PropertyKey key) {
+    public static boolean hasVertexKeyIndex(PropertyKey key) {
         InternalRelationType type = (InternalRelationType)key;
         for (IndexType index : type.getKeyIndexes()) {
             if (index.getElement() == ElementCategory.VERTEX) {
                 if (index.isMixedIndex() && AttributeUtils.isString(key.dataType())) {
                     ParameterIndexField field = ((MixedIndexType) index).getField(key);
                     Object mapping = ParameterType.MAPPING.findParameter(field.getParameters(), null);
-                    if (Mapping.STRING.equals(mapping)) {
+                    if (Mapping.STRING.equals(mapping) || Mapping.TEXTSTRING.equals(mapping)) {
                         return true;
                     }
                 } else if (index.isCompositeIndex()) {

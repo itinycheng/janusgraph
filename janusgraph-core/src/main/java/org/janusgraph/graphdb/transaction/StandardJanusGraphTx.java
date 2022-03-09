@@ -1605,7 +1605,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
     }
 
     private boolean hasSimpleInternalVertexKeyIndex(PropertyKey key) {
-        return propertyKeyHasIndexMap.computeIfAbsent(key, TypeUtil::hasSimpleInternalVertexKeyIndex);
+        return propertyKeyHasIndexMap.computeIfAbsent(key, TypeUtil::hasVertexKeyIndex);
     }
 
     private final Function<Object, JanusGraphVertex> vertexIDConversionFct = id -> {
