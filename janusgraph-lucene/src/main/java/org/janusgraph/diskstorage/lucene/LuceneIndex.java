@@ -196,7 +196,7 @@ public class LuceneIndex implements IndexProvider {
 
     public static final ConfigOption<Boolean> USE_STREAM = new ConfigOption<>(QUERY_NS,"lucene-stream",
         "Experimental: Use stream for results",
-        ConfigOption.Type.LOCAL, true);
+        ConfigOption.Type.LOCAL, false);
 
     public LuceneIndex(Configuration config) {
         final String dir = config.get(GraphDatabaseConfiguration.INDEX_DIRECTORY);
