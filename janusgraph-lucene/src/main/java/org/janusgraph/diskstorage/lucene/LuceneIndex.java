@@ -77,6 +77,7 @@ import org.janusgraph.core.attribute.Geo;
 import org.janusgraph.core.attribute.Geoshape;
 import org.janusgraph.core.attribute.Text;
 import org.janusgraph.core.schema.Mapping;
+import org.janusgraph.core.schema.Parameter;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.BaseTransaction;
 import org.janusgraph.diskstorage.BaseTransactionConfig;
@@ -171,6 +172,8 @@ public class LuceneIndex implements IndexProvider {
      * Default measure of shape precision used when creating the prefix tree.
      */
     public static final double DEFAULT_GEO_DIST_ERROR_PCT = 0.025;
+
+    public static final String SORT_BY_SCORE_PARAMETER = "sortByScore";
 
     private static final Map<Geo, SpatialOperation> SPATIAL_PREDICATES = spatialPredicates();
 
@@ -947,6 +950,11 @@ public class LuceneIndex implements IndexProvider {
             final IndexSearcher searcher = ((Transaction) tx).getSearcher(query.getStore());
             if (searcher == null) {
                 return Collections.unmodifiableList(new ArrayList<RawQuery.Result<String>>()).stream(); //Index does not yet exist
+            }
+            for (Parameter parameter : query.getParameters()) {
+                if (parameter.key().equals(SORT_BY_SCORE_PARAMETER) && (boolean) parameter.value()) {
+                    disableScore = false;
+                }
             }
             final Query q;
             try {
