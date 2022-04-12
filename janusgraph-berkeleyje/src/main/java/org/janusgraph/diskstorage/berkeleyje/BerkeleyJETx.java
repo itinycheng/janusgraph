@@ -14,12 +14,15 @@
 
 package org.janusgraph.diskstorage.berkeleyje;
 
+import static org.janusgraph.diskstorage.berkeleyje.BerkeleyJEStoreManager.convertThreadInterruptedException;
+
 import com.google.common.base.Preconditions;
 import com.sleepycat.je.CacheMode;
 import com.sleepycat.je.Cursor;
 import com.sleepycat.je.Database;
 import com.sleepycat.je.DatabaseException;
 import com.sleepycat.je.LockMode;
+import com.sleepycat.je.ThreadInterruptedException;
 import com.sleepycat.je.Transaction;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.BaseTransactionConfig;
@@ -60,16 +63,25 @@ public class BerkeleyJETx extends AbstractStoreTransaction {
             if (!isOpen) {
                 throw new PermanentBackendException("Transaction already closed");
             }
-            Cursor cursor = db.openCursor(tx, null);
-            openCursors.add(cursor);
-            return cursor;
+            try {
+                Cursor cursor = db.openCursor(tx, null);
+                openCursors.add(cursor);
+                return cursor;
+            } catch (ThreadInterruptedException e) {
+                throw convertThreadInterruptedException(e);
+            }
         }
     }
 
     void closeCursor(Cursor cursor) {
         synchronized (openCursors) {
-            cursor.close();
-            openCursors.remove(cursor);
+            try {
+                cursor.close();
+            } catch (ThreadInterruptedException e) {
+                throw convertThreadInterruptedException(e);
+            } finally {
+                openCursors.remove(cursor);
+            }
         }
     }
 
@@ -98,6 +110,14 @@ public class BerkeleyJETx extends AbstractStoreTransaction {
             closeOpenCursors();
             tx.abort();
             tx = null;
+        } catch (ThreadInterruptedException ignored) {
+            // Ignore for avoid issues when backend is closing
+        } catch (IllegalStateException e) {
+            // Ignore for avoid issues when backend is closing
+            if (!"Database was closed.".equals(e.getMessage())
+                && !"Environment is closed.".equals(e.getMessage())) {
+                throw e;
+            }
         } catch (DatabaseException e) {
             throw new PermanentBackendException(e);
         }
@@ -114,6 +134,8 @@ public class BerkeleyJETx extends AbstractStoreTransaction {
             closeOpenCursors();
             tx.commit();
             tx = null;
+        } catch (ThreadInterruptedException e) {
+            throw convertThreadInterruptedException(e);
         } catch (DatabaseException e) {
             throw new PermanentBackendException(e);
         }

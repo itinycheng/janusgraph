@@ -14,6 +14,8 @@
 
 package org.janusgraph.diskstorage.berkeleyje;
 
+import static org.janusgraph.diskstorage.berkeleyje.BerkeleyJEStoreManager.convertThreadInterruptedException;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.sleepycat.je.Cursor;
@@ -28,6 +30,7 @@ import com.sleepycat.je.OperationResult;
 import com.sleepycat.je.OperationStatus;
 import com.sleepycat.je.Put;
 import com.sleepycat.je.ReadOptions;
+import com.sleepycat.je.ThreadInterruptedException;
 import com.sleepycat.je.Transaction;
 import com.sleepycat.je.WriteOptions;
 import org.janusgraph.diskstorage.BackendException;
@@ -62,7 +65,7 @@ public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
     public static Function<Integer, Integer> ttlConverter = ttl -> (int) Math.max(1, Duration.of(ttl, ChronoUnit.SECONDS).toHours());
 
 
-    private final Database db;
+    private Database db;
     private final String name;
     private final BerkeleyJEStoreManager manager;
     private boolean isOpen;
@@ -102,10 +105,16 @@ public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
         ((BerkeleyJETx) txh).closeCursor(cursor);
     }
 
+    void reopen(final Database db) {
+        this.db = db;
+    }
+
     @Override
     public synchronized void close() throws BackendException {
         try {
-            if(isOpen) db.close();
+            if (isOpen) db.close();
+        } catch (ThreadInterruptedException ignored) {
+            // environment will be closed
         } catch (DatabaseException e) {
             throw new PermanentBackendException(e);
         }
@@ -184,9 +193,9 @@ public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
                 }
                 while (!selector.reachedLimit()) {
                     if (status == null) {
-                        status = cursor.get(foundKey, foundData, Get.SEARCH_GTE, getReadOptions(txh)) == null ? OperationStatus.NOTFOUND : OperationStatus.SUCCESS;
+                        status = get(Get.SEARCH_GTE);
                     } else {
-                        status = cursor.get(foundKey, foundData, Get.NEXT, getReadOptions(txh)) == null ? OperationStatus.NOTFOUND : OperationStatus.SUCCESS;
+                        status = get(Get.NEXT);
                     }
                     if (status != OperationStatus.SUCCESS) {
                         break;
@@ -203,6 +212,16 @@ public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
                     }
                 }
                 return null;
+            }
+
+            private OperationStatus get(Get get) {
+                try {
+                    return cursor.get(foundKey, foundData, get, getReadOptions(txh)) == null
+                        ? OperationStatus.NOTFOUND
+                        : OperationStatus.SUCCESS;
+                } catch (ThreadInterruptedException e) {
+                    throw convertThreadInterruptedException(e);
+                }
             }
 
             @Override
@@ -248,6 +267,8 @@ public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
                 OperationResult result = db.put(tx, key.as(ENTRY_FACTORY), value.as(ENTRY_FACTORY), Put.NO_OVERWRITE, writeOptions);
                 status = result == null ? OperationStatus.KEYEXIST : OperationStatus.SUCCESS;
             }
+        } catch (ThreadInterruptedException e) {
+            throw convertThreadInterruptedException(e);
         } catch (LockTimeoutException e) {
             throw new TemporaryLockingException(e);
         }
@@ -267,6 +288,8 @@ public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
             if (status != OperationStatus.SUCCESS && status != OperationStatus.NOTFOUND) {
                 throw new PermanentBackendException("Could not remove: " + status);
             }
+        } catch (ThreadInterruptedException e) {
+            throw convertThreadInterruptedException(e);
         } catch (DatabaseException e) {
             throw new PermanentBackendException(e);
         }
