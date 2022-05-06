@@ -164,6 +164,7 @@ public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
         final DatabaseEntry foundKey = keyStart.as(ENTRY_FACTORY);
         final DatabaseEntry foundData = new DatabaseEntry();
         final Cursor cursor = openCursor(txh);
+        final ReadOptions readOptions = getReadOptions(txh);
 
         return new RecordIterator<KeyValueEntry>() {
             private OperationStatus status;
@@ -193,9 +194,9 @@ public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
                 }
                 while (!selector.reachedLimit()) {
                     if (status == null) {
-                        status = get(Get.SEARCH_GTE);
+                        status = get(Get.SEARCH_GTE, readOptions);
                     } else {
-                        status = get(Get.NEXT);
+                        status = get(Get.NEXT, readOptions);
                     }
                     if (status != OperationStatus.SUCCESS) {
                         break;
@@ -214,9 +215,9 @@ public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
                 return null;
             }
 
-            private OperationStatus get(Get get) {
+            private OperationStatus get(Get get, ReadOptions readOptions) {
                 try {
-                    return cursor.get(foundKey, foundData, get, getReadOptions(txh)) == null
+                    return cursor.get(foundKey, foundData, get, readOptions) == null
                         ? OperationStatus.NOTFOUND
                         : OperationStatus.SUCCESS;
                 } catch (ThreadInterruptedException e) {

@@ -18,6 +18,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.Compare;
 import org.apache.tinkerpop.gremlin.process.traversal.Contains;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
 import org.apache.tinkerpop.gremlin.process.traversal.Text;
+import org.apache.tinkerpop.gremlin.process.traversal.TextP;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer;
 import org.apache.tinkerpop.gremlin.process.traversal.util.AndP;
 import org.apache.tinkerpop.gremlin.process.traversal.util.ConnectiveP;
@@ -64,6 +65,23 @@ public class JanusGraphPredicateUtils {
                 case without: return Contain.NOT_IN;
                 default: throw new IllegalArgumentException("Unexpected container: " + con);
 
+            }
+        } else if (p instanceof Text) {
+            final Text text = (Text) p;
+            switch (text) {
+                case startingWith:
+                    return org.janusgraph.core.attribute.Text.PREFIX;
+                case notStartingWith:
+                    return org.janusgraph.core.attribute.Text.NOT_PREFIX;
+                case containing:
+                    return org.janusgraph.core.attribute.Text.CONTAINS_REGEX;
+                case notContaining:
+                    return org.janusgraph.core.attribute.Text.NOT_CONTAINS;
+                case endingWith:
+                case notEndingWith:
+                    return null;
+                default:
+                    throw new IllegalArgumentException("Unexpected text predicate: " + text);
             }
         } else return null;
     }
