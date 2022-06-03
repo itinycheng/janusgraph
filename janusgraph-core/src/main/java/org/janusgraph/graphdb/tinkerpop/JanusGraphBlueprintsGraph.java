@@ -100,7 +100,6 @@ public abstract class JanusGraphBlueprintsGraph implements JanusGraph {
         // If user closes the graph before committing/rolling back thread-bound transactions, there could be a leakage.
         // In case that happens, here we at least remove the ThreadLocal object belonging to the current thread.
         txs.remove();
-        txs = null;
     }
 
     @Override
