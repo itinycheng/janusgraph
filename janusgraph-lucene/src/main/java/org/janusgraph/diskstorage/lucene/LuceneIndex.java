@@ -473,7 +473,7 @@ public class LuceneIndex implements IndexProvider {
             .ifPresent(dualFieldName -> removeFieldIfNeeded(doc, dualFieldName, e.value, ki));
     }
 
-    private void removeFieldIfNeeded(Document doc, String fieldName, Object fieldValue, KeyInformation ki) {
+    private void removeFieldIfNeeded(Document doc, String fieldName, Object indexEntryValue, KeyInformation ki) {
         boolean isSingle = ki.getCardinality() == Cardinality.SINGLE;
         Iterator<IndexableField> it = doc.iterator();
         while (it.hasNext()) {
@@ -481,20 +481,22 @@ public class LuceneIndex implements IndexProvider {
             if (!fieldName.equals(field.name())) {
                 continue;
             }
-            if (isSingle || convertToStringValue(ki, fieldValue).equals(field.stringValue())) {
+            if (isSingle || convertToStringValue(fieldName, ki, indexEntryValue).equals(field.stringValue())) {
                 it.remove();
                 break;
             }
         }
     }
 
-    private String convertToStringValue(final KeyInformation ki, Object value) {
+    private String convertToStringValue(String fieldName, final KeyInformation ki, Object value) {
         String converted;
         if (value instanceof Number) {
             converted = value.toString();
         } else if (AttributeUtils.isString(value)) {
             Mapping mapping = Mapping.getMapping(ki);
-            if (mapping == Mapping.DEFAULT || mapping == Mapping.TEXT || mapping == Mapping.TEXTSTRING) {
+            if (mapping == Mapping.DEFAULT
+                || mapping == Mapping.TEXT
+                || (mapping == Mapping.TEXTSTRING && !isDualFieldName(fieldName))) {
                 converted = ((String) value).toLowerCase();
             } else {
                 converted = (String) value;

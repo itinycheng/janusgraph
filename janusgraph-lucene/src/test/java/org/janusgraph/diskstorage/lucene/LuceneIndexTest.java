@@ -27,7 +27,11 @@ import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.janusgraph.diskstorage.indexing.IndexProvider;
 import org.janusgraph.diskstorage.indexing.IndexProviderTest;
+import org.janusgraph.diskstorage.indexing.IndexQuery;
 import org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration;
+import org.janusgraph.graphdb.query.condition.PredicateCondition;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,6 +147,30 @@ public class LuceneIndexTest extends IndexProviderTest {
         assertThrows(IllegalArgumentException.class, () ->{
             index.mapKey2Field("here is an illegal character: " + REPLACEMENT_CHAR, null);
         });
+    }
+
+    @Test
+    public void testTextStringMapping() throws Exception {
+        initialize("vertex");
+
+        Multimap<String, Object> firstDoc = HashMultimap.create();
+        firstDoc.put(TEXT_STRING_MULTI, "John Doe");
+
+        Multimap<String, Object> secondDoc = HashMultimap.create();
+        secondDoc.put(TEXT_STRING_MULTI, "John");
+
+        add("vertex", "test1", firstDoc, true);
+        add("vertex", "test2", secondDoc, true);
+
+        clopen();
+
+        remove("vertex", "test1", firstDoc, false);
+
+        clopen();
+
+        assertEquals(1, tx.queryStream(new IndexQuery("vertex", PredicateCondition.of(TEXT_STRING_MULTI, Cmp.EQUAL, "John"))).count());
+        assertEquals(0, tx.queryStream(new IndexQuery("vertex", PredicateCondition.of(TEXT_STRING_MULTI, Cmp.EQUAL, "John Doe"))).count());
+        assertEquals(1, tx.queryStream(new IndexQuery("vertex", PredicateCondition.of(TEXT_STRING_MULTI, Text.CONTAINS, "John"))).count());
     }
 
     @Test

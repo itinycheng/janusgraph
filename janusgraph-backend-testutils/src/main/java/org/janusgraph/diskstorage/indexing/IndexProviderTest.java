@@ -90,7 +90,8 @@ public abstract class IndexProviderTest {
 
     public static final String TEXT = "text", TIME = "time", WEIGHT = "weight", LOCATION = "location",
             BOUNDARY = "boundary", NAME = "name", PHONE_LIST = "phone_list", PHONE_SET = "phone_set", DATE = "date", TIME_TICK = "time_tick",
-            STRING="string", ANALYZED="analyzed", FULL_TEXT="full_text", KEYWORD="keyword", TEXT_STRING="text_string", BOOLEAN="boolean";
+            STRING="string", ANALYZED="analyzed", FULL_TEXT="full_text", KEYWORD="keyword", TEXT_STRING="text_string", BOOLEAN="boolean",
+            TEXT_STRING_MULTI="text_string_multi";
 
     public static StandardKeyInformation of(Class<?> clazz, Cardinality cardinality,  Parameter<?>... paras) {
         return new StandardKeyInformation(clazz, cardinality, paras);
@@ -147,6 +148,7 @@ public abstract class IndexProviderTest {
                         Mapping.TEXTSTRING.asParameter(), new Parameter<>(ParameterType.STRING_ANALYZER.getName(), englishAnalyzerName),
                     new Parameter<>(ParameterType.TEXT_ANALYZER.getName(), englishAnalyzerName)));
                 put(TEXT_STRING, new StandardKeyInformation(String.class, Cardinality.SINGLE, Mapping.TEXTSTRING.asParameter()));
+                put(TEXT_STRING_MULTI, new StandardKeyInformation(String.class, Cardinality.SET, Mapping.TEXTSTRING.asParameter()));
             }
             put(KEYWORD, new StandardKeyInformation(String.class, Cardinality.SINGLE, textParameter, new Parameter<>(ParameterType.TEXT_ANALYZER.getName(), keywordAnalyzerName)));
         }};
@@ -1338,7 +1340,7 @@ public abstract class IndexProviderTest {
         }
     }
 
-    private void remove(String store, String documentId, Multimap<String, Object> doc, boolean deleteAll) {
+    protected void remove(String store, String documentId, Multimap<String, Object> doc, boolean deleteAll) {
         for (final Map.Entry<String, Object> kv : doc.entries()) {
             if (index.supports(allKeys.get(kv.getKey()))) {
                 tx.delete(store, documentId, kv.getKey(), kv.getValue(), deleteAll);
