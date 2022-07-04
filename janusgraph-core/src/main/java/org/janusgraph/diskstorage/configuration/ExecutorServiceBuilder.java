@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -30,7 +30,7 @@ public class ExecutorServiceBuilder {
 
     private static final Logger log = LoggerFactory.getLogger(ExecutorServiceBuilder.class);
 
-    public static final int THREAD_POOL_SIZE_SCALE_FACTOR = 2;
+    public static final int THREAD_POOL_SIZE_SCALE_FACTOR = 1;
 
     public static final String FIXED_THREAD_POOL_CLASS = "fixed";
     public static final String CACHED_THREAD_POOL_CLASS = "cached";
@@ -43,6 +43,7 @@ public class ExecutorServiceBuilder {
 
             case FIXED_THREAD_POOL_CLASS:
                 return buildFixedExecutorService(toPoolSize(executorServiceConfiguration.getCorePoolSize()),
+                    executorServiceConfiguration.getKeepAliveTime(),
                     executorServiceConfiguration.getThreadFactory());
 
             case CACHED_THREAD_POOL_CLASS:
@@ -55,15 +56,22 @@ public class ExecutorServiceBuilder {
         }
     }
 
-    private static ExecutorService buildFixedExecutorService(int poolSize, ThreadFactory threadFactory){
+    private static ExecutorService buildFixedExecutorService(int poolSize, final Long keepAliveTime, ThreadFactory threadFactory){
 
-        ExecutorService executorService;
+        ThreadPoolExecutor executorService;
 
         if(threadFactory == null){
-            executorService = Executors.newFixedThreadPool(poolSize);
+            executorService = new ThreadPoolExecutor(poolSize, poolSize,
+                keepAliveTime, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>());
         } else {
-            executorService = Executors.newFixedThreadPool(poolSize, threadFactory);
+            executorService = new ThreadPoolExecutor(poolSize, poolSize,
+                keepAliveTime, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(),
+                threadFactory);
         }
+
+        executorService.allowCoreThreadTimeOut(true);
 
         log.info("Initiated fixed thread pool of size {}", poolSize);
 
@@ -86,7 +94,8 @@ public class ExecutorServiceBuilder {
             threadPoolExecutor = new ThreadPoolExecutor(corePoolSize, Integer.MAX_VALUE, keepAliveTime, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), threadFactory);
         }
 
-        threadPoolExecutor.prestartAllCoreThreads();
+        // threadPoolExecutor.prestartAllCoreThreads();
+        threadPoolExecutor.allowCoreThreadTimeOut(true);
 
         log.info("Initiated cached thread pool with {} pre-started core size threads and keep alive time of {} ms",
             corePoolSize, keepAliveTime);

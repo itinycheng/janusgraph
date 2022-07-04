@@ -619,7 +619,7 @@ public class GraphDatabaseConfiguration {
         +PARALLEL_BACKEND_EXECUTOR_SERVICE_CORE_POOL_SIZE.getName()+"`; `cached` - cached thread pool;",
         ConfigOption.Type.LOCAL,
         String.class,
-        "fixed");
+        "cached");
 
     public static final ConfigOption<Long> PARALLEL_BACKEND_EXECUTOR_SERVICE_MAX_SHUTDOWN_WAIT_TIME = new ConfigOption<>(
         PARALLEL_BACKEND_EXECUTOR_SERVICE,
