@@ -283,6 +283,8 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
 
     public final boolean metricsEnabled;
 
+    private final StackTraceElement[] createdAt;
+
     public StandardJanusGraphTx(StandardJanusGraph graph, TransactionConfiguration config) {
         Preconditions.checkNotNull(graph);
         Preconditions.checkArgument(graph.isOpen());
@@ -297,6 +299,9 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         this.edgeSerializer = graph.getEdgeSerializer();
         this.indexSerializer = graph.getIndexSerializer();
         this.indexSelector = graph.getIndexSelector();
+
+        this.createdAt = log.isTraceEnabled() ?
+            new Throwable("Transaction created").getStackTrace() : null;
 
         temporaryIds = new IDPool() {
 
@@ -331,8 +336,8 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         long effectiveVertexCacheSize = config.getVertexCacheSize();
         if (!config.isReadOnly()) {
             effectiveVertexCacheSize = Math.max(MIN_VERTEX_CACHE_SIZE, effectiveVertexCacheSize);
-            log.debug("Caffeine vertex cache size: requested={} effective={} (min={})",
-                    config.getVertexCacheSize(), effectiveVertexCacheSize, MIN_VERTEX_CACHE_SIZE);
+            // log.debug("Caffeine vertex cache size: requested={} effective={} (min={})",
+            //         config.getVertexCacheSize(), effectiveVertexCacheSize, MIN_VERTEX_CACHE_SIZE);
         }
 
         // Special case for reindex job -- disable cache
@@ -1723,6 +1728,10 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         vertexProperty2ApplicableIndices.clear();
         originalIndices.clear();
         propertyKeyHasIndexMap.clear();
+    }
+
+    public String createdAt() {
+        return StringUtils.join(createdAt, "\n        ");
     }
 
     @Override
