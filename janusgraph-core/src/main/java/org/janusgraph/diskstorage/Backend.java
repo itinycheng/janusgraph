@@ -423,14 +423,14 @@ public class Backend implements LockerProvider, AutoCloseable {
     }
 
     public StandardScanner.Builder buildEdgeScanJob() {
-        return buildStoreIndexScanJob(EDGESTORE_NAME);
+        return buildStoreScanJob(EDGESTORE_NAME);
     }
 
     public StandardScanner.Builder buildGraphIndexScanJob() {
-        return buildStoreIndexScanJob(INDEXSTORE_NAME);
+        return buildStoreScanJob(INDEXSTORE_NAME);
     }
 
-    private StandardScanner.Builder buildStoreIndexScanJob(String storeName) {
+    public StandardScanner.Builder buildStoreScanJob(String storeName) {
         TimestampProvider provider = configuration.get(TIMESTAMP_PROVIDER);
         ModifiableConfiguration jobConfig = buildJobConfiguration();
         jobConfig.set(JOB_START_TIME,provider.getTime().toEpochMilli());
