@@ -96,7 +96,7 @@ public class BerkeleyJEStoreManager extends LocalStoreManager implements Ordered
 
     private final Map<String, BerkeleyJEKeyValueStore> stores;
 
-    protected Environment environment;
+    protected volatile Environment environment;
     protected final StoreFeatures features;
 
     public BerkeleyJEStoreManager(Configuration configuration) throws BackendException {
