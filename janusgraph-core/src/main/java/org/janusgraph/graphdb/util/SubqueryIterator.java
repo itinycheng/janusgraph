@@ -17,8 +17,6 @@
 
 package org.janusgraph.graphdb.util;
 
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.USE_INDEX_CACHE;
-
 import org.janusgraph.core.JanusGraphElement;
 import org.janusgraph.core.JanusGraphException;
 import org.janusgraph.diskstorage.BackendTransaction;
@@ -30,10 +28,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
+
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.USE_INDEX_CACHE;
 
 /**
  * @author davidclement90@laposte.net
@@ -57,7 +63,8 @@ public class SubqueryIterator extends CloseableAbstractIterator<JanusGraphElemen
 
     public SubqueryIterator(JointIndexQuery.Subquery subQuery, IndexSerializer indexSerializer, BackendTransaction tx,
                             SubqueryCache indexCache, int limit,
-                            Function<Object, ? extends JanusGraphElement> function, List<Object> otherResults) {
+                            Function<Object, ? extends JanusGraphElement> function,
+                            Supplier<List<Object>> otherResultsSupplier) {
         this.subQuery = subQuery;
         this.indexCache = indexCache;
         this.useCache = tx.getBaseTransactionConfig().getCustomOption(USE_INDEX_CACHE);
@@ -81,18 +88,31 @@ public class SubqueryIterator extends CloseableAbstractIterator<JanusGraphElemen
                 throw new JanusGraphException("Could not call index", e);
             }
         }
-        elementIterator = stream
-                .filter(e -> otherResults == null || otherResults.contains(e))
-                .map(e -> {
-                    JanusGraphElement r = function.apply(e);
-                    if (r == null) {
-                        log.warn("Subquery returned invalid element id: {}", e);
-                    }
-                    return r;
-                })
-                .filter(r -> r != null) // ignore invalid elements
-                .limit(limit)
-                .iterator();
+        AtomicReference<Collection<Object>> otherResults = new AtomicReference<>(null);
+        AtomicBoolean needInitializeNextResults = new AtomicBoolean(true);
+        elementIterator =
+            stream.filter(e -> {
+                      if (needInitializeNextResults.get()) {
+                          needInitializeNextResults.set(false);
+                          final List<Object> objects = otherResultsSupplier.get();
+                          if (objects != null) {
+                              otherResults.set(new HashSet<>(objects));
+                          } else {
+                              otherResults.set(null);
+                          }
+                      }
+                      return otherResults.get() == null || otherResults.get().contains(e);
+                  })
+                  .map(e -> {
+                      JanusGraphElement r = function.apply(e);
+                      if (r == null) {
+                          log.warn("Subquery returned invalid element id: {}", e);
+                      }
+                      return r;
+                  })
+                  .filter(Objects::nonNull) // ignore invalid elements
+                  .limit(limit)
+                  .iterator();
     }
 
     @Override

@@ -399,6 +399,10 @@ public class QueryUtil {
                     throw new JanusGraphException("Could not process individual retrieval call ", e);
                 }
 
+                if (subResult.isEmpty()) {
+                    return Collections.emptyList();
+                }
+
                 if (subResult.size() >= subLimit) {
                     exhaustedResults = false;
                 }
