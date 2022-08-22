@@ -36,6 +36,8 @@ import org.janusgraph.diskstorage.indexing.StandardKeyInformation;
 import org.janusgraph.graphdb.internal.Order;
 import org.janusgraph.graphdb.query.condition.PredicateCondition;
 import org.junit.jupiter.api.Disabled;
+import org.janusgraph.graphdb.internal.Order;
+import org.janusgraph.graphdb.query.condition.PredicateCondition;
 import org.junit.jupiter.api.Test;
 
 import java.util.Date;

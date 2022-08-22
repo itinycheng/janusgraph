@@ -28,6 +28,7 @@ import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
@@ -761,7 +762,7 @@ public class SolrIndex implements IndexProvider {
         final String queryFilter = buildQueryFilter(query.getCondition(), information.get(query.getStore()));
         solrQuery.addFilterQuery(queryFilter);
         if (!query.getOrder().isEmpty()) {
-            addOrderToQuery(solrQuery, query.getOrder(), information.get(collection));
+            addOrderToQuery(solrQuery, query.getOrder(), information.get(query.getStore()));
         }
         solrQuery.setStart(0);
         if (query.hasLimit()) {
@@ -814,7 +815,7 @@ public class SolrIndex implements IndexProvider {
             solrQuery.setRows(batchSize);
         }
         if (!query.getOrders().isEmpty()) {
-            addOrderToQuery(solrQuery, query.getOrders(), information.get(collection));
+            addOrderToQuery(solrQuery, query.getOrders(), information.get(query.getStore()));
         }
 
         for(final Parameter parameter: query.getParameters()) {
@@ -845,14 +846,18 @@ public class SolrIndex implements IndexProvider {
     @Override
     public Number queryAggregation(IndexQuery query, KeyInformation.IndexRetriever information, BaseTransaction tx, Aggregation aggregation) throws BackendException {
         try {
-            final String collection = query.getStore();
+            final Optional<String> collection = getCollectionName(query.getStore());
+            if (!collection.isPresent()) {
+                return 0L;
+            }
+            final String keyIdField = getKeyFieldId(query.getStore());
             final SolrQuery solrQuery = new SolrQuery("*:*");
-            final String queryFilter = buildQueryFilter(query.getCondition(), information.get(collection));
+            final String queryFilter = buildQueryFilter(query.getCondition(), information.get(query.getStore()));
             solrQuery.addFilterQuery(queryFilter);
 
 
             switch (aggregation.getType()) {
-                case COUNT: return executeCount(query, collection, solrQuery);
+                case COUNT: return executeCount(query, collection.get(), solrQuery);
                 case MIN: return executeMin(query, collection, solrQuery, information, aggregation.getFieldName(), aggregation.getDataType());
                 case MAX: return executeMax(query, collection, solrQuery, information, aggregation.getFieldName(), aggregation.getDataType());
                 case AVG: return executeAvg(query, collection, solrQuery, information, aggregation.getFieldName());
