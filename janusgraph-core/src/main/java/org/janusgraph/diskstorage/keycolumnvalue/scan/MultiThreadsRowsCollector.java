@@ -44,6 +44,8 @@ import java.util.function.Predicate;
 import static org.janusgraph.diskstorage.keycolumnvalue.scan.StandardScannerExecutor.Row;
 import static org.janusgraph.diskstorage.keycolumnvalue.scan.StandardScannerExecutor.TIME_PER_TRY;
 
+import com.google.common.collect.Iterables;
+
 /**
  * Uses separate thread per query. May be used for {@link KeyColumnValueStore}
  * that preserves keys order while running parallel scans (f.e. Cassandra)
@@ -153,7 +155,12 @@ class MultiThreadsRowsCollector extends RowsCollector {
         for (DataPuller dataPuller : pullThreads) {
             dataPuller.join(10);
             if (dataPuller.isAlive()) {
-                log.warn("Data pulling thread [{}] did not terminate. Forcing termination",i);
+                log.warn("Data pulling thread [{}] did not terminate. Forcing termination", i);
+                final BlockingQueue<SliceResult> dataQueue = dataQueues[i];
+                log.warn("Dump queue (top10): " + dataQueue.size());
+                for (final SliceResult sliceResult : Iterables.limit(dataQueue, 10)) {
+                    log.warn("Query: " + sliceResult.query + ", Key: " + sliceResult.key + ", Entries size: " + sliceResult.entries.size());
+                }
                 if (storeFeatures.supportsInterruption()) {
                     dataPuller.interrupt();
                 } else {
