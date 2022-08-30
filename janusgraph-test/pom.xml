@@ -60,6 +60,21 @@
             <artifactId>janusgraph-backend-testutils</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.janusgraph</groupId>
+            <artifactId>janusgraph-lucene</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.janusgraph</groupId>
+            <artifactId>janusgraph-berkeleyje</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.janusgraph</groupId>
+            <artifactId>janusgraph-rocksdb</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
         <!-- TinkerPop -->
         <dependency>
             <groupId>org.apache.tinkerpop</groupId>

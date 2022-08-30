@@ -233,7 +233,6 @@ public class LuceneIndex implements IndexProvider {
 
     private IndexWriter getWriter(String store, KeyInformation.IndexRetriever informations) throws BackendException {
         Preconditions.checkState(isOpen, "LuceneIndex already closed");
-        Preconditions.checkArgument(writerLock.isHeldByCurrentThread());
         IndexWriter writer = writers.get(store);
         if (writer == null) {
             final LuceneCustomAnalyzer analyzer = delegatingAnalyzerFor(store, informations);
@@ -380,7 +379,6 @@ public class LuceneIndex implements IndexProvider {
 
     @Override
     public void restore(Map<String, Map<String, List<IndexEntry>>> documents, KeyInformation.IndexRetriever information, BaseTransaction tx) throws BackendException {
-        writerLock.lock();
         try {
             for (final Map.Entry<String, Map<String, List<IndexEntry>>> stores : documents.entrySet()) {
                 IndexReader reader = null;
@@ -418,8 +416,6 @@ public class LuceneIndex implements IndexProvider {
             tx.commit();
         } catch (final IOException e) {
             throw new TemporaryBackendException("Could not update Lucene index", e);
-        } finally {
-            writerLock.unlock();
         }
     }
 
@@ -1034,6 +1030,54 @@ public class LuceneIndex implements IndexProvider {
             iterator.forEachRemaining(result::add);
             return result.stream();
         }
+    }
+
+    public Stream<Map<String, String>> queryForDocument(RawQuery query, KeyInformation.IndexRetriever information,
+                                                        BaseTransaction tx) throws BackendException, IOException {
+        final IndexSearcher searcher = ((Transaction) tx).getSearcher(query.getStore());
+        if (searcher == null) {
+            return Stream.of(Collections.emptyMap());
+        }
+        Query q;
+        try {
+            q = getQueryParser(query.getStore(), information).parse(query.getQuery());
+            // Lucene query parser does not take additional parameters so any parameters on the RawQuery are ignored.
+        } catch (final ParseException e) {
+            throw new PermanentBackendException("Could not parse raw query: " + query.getQuery(), e);
+        }
+        final int offset = query.getOffset();
+        int limit = query.hasLimit() ? query.getLimit() : Integer.MAX_VALUE - 1;
+        if (limit < Integer.MAX_VALUE - 1 - offset) {
+            limit += offset;
+        } else {
+            limit = Integer.MAX_VALUE - 1;
+        }
+        SimpleDocumentCollector collector = new SimpleDocumentCollector(limit);
+        searcher.search(q, collector);
+        Function<Integer, Integer> docExtractor = collector.docs::get;
+
+        AtomicInteger currentOffset = new AtomicInteger(offset);
+        final Iterator<Map<String, String>> iterator = new Iterator<Map<String, String>>() {
+
+            @Override
+            public boolean hasNext() {
+                return currentOffset.get() < collector.docs.size();
+            }
+
+            @Override
+            public Map<String, String> next() {
+                final int idx = currentOffset.getAndIncrement();
+                try {
+                    return searcher.doc(docExtractor.apply(idx)).getFields().stream()
+                                   .filter(f -> f.stringValue() != null)
+                                   .collect(Collectors.toMap(IndexableField::name, IndexableField::stringValue));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+        Iterable<Map<String, String>> iterable = () -> iterator;
+        return StreamSupport.stream(iterable.spliterator(), false);
     }
 
     @Override
