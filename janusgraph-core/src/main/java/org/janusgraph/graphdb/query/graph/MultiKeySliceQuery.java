@@ -53,7 +53,7 @@ public class MultiKeySliceQuery extends BaseQuery implements BackendQuery<MultiK
             EntryList next =tx.indexQuery(ksq.updateLimit(getLimit()-total));
             result.add(next);
             total+=next.size();
-            if (total>=getLimit()) break;
+            if (total>=getLimit() && hasLimit()) break;
         }
         return result;
     }
