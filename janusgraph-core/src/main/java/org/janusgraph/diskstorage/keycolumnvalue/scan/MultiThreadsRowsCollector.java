@@ -230,7 +230,10 @@ class MultiThreadsRowsCollector extends RowsCollector {
                     RecordIterator<Entry> entries = keyIterator.getEntries();
                     if (!keyFilter.test(key)) continue;
                     EntryList entryList = EntryArrayList.of(entries);
-                    queue.put(new SliceResult(query, key, entryList));
+                    if (!queue.offer(new SliceResult(query, key, entryList), 10, TimeUnit.MINUTES)) {
+                        log.error("Processor threads are stuck more than 10 minutes or failed, so stop data pulling");
+                        break;
+                    }
                 }
             } catch (InterruptedException e) {
                 log.error("Data-pulling thread interrupted while waiting on queue or data", e);
