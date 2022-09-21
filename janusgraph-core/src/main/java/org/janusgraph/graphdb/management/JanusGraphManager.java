@@ -164,6 +164,9 @@ public class JanusGraphManager implements GraphManager {
     @Override
     public void putTraversalSource(String tsName, TraversalSource ts) {
         traversalSources.put(tsName, ts);
+        if (null != gremlinExecutor) {
+            gremlinExecutor.getScriptEngineManager().put(tsName, ts);
+        }
     }
 
     @Override
