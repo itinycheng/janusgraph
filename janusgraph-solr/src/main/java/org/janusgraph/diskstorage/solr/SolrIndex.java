@@ -574,6 +574,9 @@ public class SolrIndex implements IndexProvider {
 
                         final SolrInputDocument doc = new SolrInputDocument();
                         doc.setField(keyIdField, docId);
+                        if (disableVersion) {
+                            doc.setField(CommonParams.VERSION_FIELD, "0");
+                        }
 
                         final boolean isNewDoc = mutation.isNew();
 
@@ -613,6 +616,9 @@ public class SolrIndex implements IndexProvider {
                                          List<IndexEntry> fieldDeletions,
                                          KeyInformation.IndexRetriever information) throws SolrServerException, IOException, BackendException {
         final SolrInputDocument doc = new SolrInputDocument();
+        if (disableVersion) {
+            doc.setField(CommonParams.VERSION_FIELD, "0");
+        }
         doc.addField(keyIdField, docId);
         for (final IndexEntry indexEntry : fieldDeletions) {
             final KeyInformation keyInformation = information.get(collectionName, indexEntry.field);
@@ -677,6 +683,9 @@ public class SolrIndex implements IndexProvider {
                         continue;
                     }
                     final SolrInputDocument doc = new SolrInputDocument();
+                    if (disableVersion) {
+                        doc.setField(CommonParams.VERSION_FIELD, "0");
+                    }
                     doc.setField(getKeyFieldId(collectionName), docID);
                     final Map<String, Object> adds = collectFieldValues(content, collectionName, information);
                     adds.forEach((k, v) -> {
