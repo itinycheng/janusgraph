@@ -22,7 +22,6 @@ import org.janusgraph.util.datastructures.Retriever;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.NavigableMap;
 import java.util.TreeMap;
 
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.TX_VERTEX_CACHE_TYPE;
@@ -38,7 +37,7 @@ public class CacheVertex extends StandardVertex {
     // because that would waste more cycles on lookup than save actual memory
     // We use a normal map with synchronization since the likelihood of contention
     // is super low in a single transaction
-    protected final QueryCache queryCache;
+    protected QueryCache queryCache;
 
     public CacheVertex(StandardJanusGraphTx tx, Object id, byte lifecycle) {
         super(tx, id, lifecycle);
@@ -60,6 +59,10 @@ public class CacheVertex extends StandardVertex {
                 throw new RuntimeException("invalid type " + cacheType);
                 // }
         }
+    }
+
+    void setupDefaultCache() {
+        queryCache = new HashMapQueryCache();
     }
 
     public void refresh() {

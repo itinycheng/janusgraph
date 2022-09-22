@@ -460,7 +460,7 @@ public class GraphDatabaseConfiguration {
         ConfigOption.Type.MASKABLE, Boolean.class, false);
 
     public static final ConfigOption<String> TX_VERTEX_CACHE_TYPE = new ConfigOption<>(CACHE_NS, "tx-vertex-cache-type",
-        "Vertex cache type. For local storage NOCACHE will be default. Available values DEFAULT, TREEMAP, NOCACHE",
+        "Vertex cache type. Available values DEFAULT, TREEMAP, NOCACHE",
         ConfigOption.Type.MASKABLE, String.class, "DEFAULT");
 
     /**
