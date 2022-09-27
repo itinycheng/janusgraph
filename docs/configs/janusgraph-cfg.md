@@ -267,6 +267,7 @@ Solr index configuration
 | index.[X].solr.mode | The operation mode for Solr which is either via HTTP (`http`) or using SolrCloud (`cloud`) | String | cloud | GLOBAL_OFFLINE |
 | index.[X].solr.num-shards | Number of shards for a collection. This applies when creating a new collection which is only supported under the SolrCloud operation mode. | Integer | 1 | GLOBAL_OFFLINE |
 | index.[X].solr.pull-replication-factor | PULL Replication factor for a collection. This applies when creating a new collection which is only supported under the SolrCloud operation mode. | Integer | 0 | GLOBAL_OFFLINE |
+| index.[X].solr.replica-preference | Preferred replicas by type. Any combination of PULL, TLOG and NRT is allowed. | String | PULL | MASKABLE |
 | index.[X].solr.replication-factor | NRT Replication factor for a collection. This applies when creating a new collection which is only supported under the SolrCloud operation mode. | Integer | 1 | GLOBAL_OFFLINE |
 | index.[X].solr.tlog-replication-factor | TLOG Replication factor for a collection. This applies when creating a new collection which is only supported under the SolrCloud operation mode. | Integer | 0 | GLOBAL_OFFLINE |
 | index.[X].solr.ttl_field | Name of the TTL field for Solr collections. | String | ttl | GLOBAL_OFFLINE |

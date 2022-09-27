@@ -29,6 +29,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
@@ -54,6 +55,7 @@ import org.apache.solr.common.cloud.Slice;
 import org.apache.solr.common.cloud.ZkStateReader;
 import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
+import org.apache.solr.common.params.ShardParams;
 import org.apache.solr.common.params.UpdateParams;
 import org.apache.zookeeper.KeeperException;
 import org.janusgraph.core.Cardinality;
@@ -221,6 +223,10 @@ public class SolrIndex implements IndexProvider {
         "Use HTTP/2 client",
         ConfigOption.Type.MASKABLE, false);
 
+    public static final ConfigOption<String> SOLR_REPLICA_PREFERENCE = new ConfigOption<>(SOLR_NS, "replica-preference",
+        "Preferred replicas by type. Any combination of PULL, TLOG and NRT is allowed.",
+        ConfigOption.Type.MASKABLE, "PULL");
+
 
     /** HTTP Configuration */
 
@@ -316,6 +322,7 @@ public class SolrIndex implements IndexProvider {
         clientParams.add(HttpClientUtil.PROP_CONNECTION_TIMEOUT, config.get(HTTP_CONNECTION_TIMEOUT).toString());
         clientParams.add(HttpClientUtil.PROP_MAX_CONNECTIONS_PER_HOST, config.get(HTTP_MAX_CONNECTIONS_PER_HOST).toString());
         clientParams.add(HttpClientUtil.PROP_MAX_CONNECTIONS, config.get(HTTP_GLOBAL_MAX_CONNECTIONS).toString());
+        clientParams.add(ShardParams.SHARDS_PREFERENCE, ShardParams.SHARDS_PREFERENCE_REPLICA_TYPE + ":" + config.get(SOLR_REPLICA_PREFERENCE));
 
         switch (mode) {
             case CLOUD:
