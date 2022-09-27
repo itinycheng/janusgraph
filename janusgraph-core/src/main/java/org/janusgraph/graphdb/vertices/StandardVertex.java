@@ -31,8 +31,6 @@ import org.janusgraph.util.datastructures.Retriever;
  */
 
 public class StandardVertex extends AbstractVertex {
-
-    private final Object lifecycleMutex = new Object();
     private volatile byte lifecycle;
     private volatile AddedRelationsContainer addedRelations=AddedRelationsContainer.EMPTY;
 
@@ -41,10 +39,8 @@ public class StandardVertex extends AbstractVertex {
         this.lifecycle=lifecycle;
     }
 
-    public final void updateLifeCycle(ElementLifeCycle.Event event) {
-        synchronized(lifecycleMutex) {
-            this.lifecycle = ElementLifeCycle.update(lifecycle,event);
-        }
+    public synchronized final void updateLifeCycle(ElementLifeCycle.Event event) {
+        this.lifecycle = ElementLifeCycle.update(lifecycle, event);
     }
 
     @Override
