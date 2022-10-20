@@ -23,13 +23,15 @@ import org.janusgraph.graphdb.internal.InternalRelationType;
 import org.janusgraph.graphdb.internal.RelationCategory;
 
 import java.util.EnumMap;
+import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
  */
 public class RelationQueryCache implements AutoCloseable {
 
-    private final Cache<Long,CacheEntry> cache;
+    private final Cache<CacheKey, CacheEntry> cache;
     private final EdgeSerializer edgeSerializer;
 
     private final EnumMap<RelationCategory,SliceQuery> relationTypes;
@@ -49,15 +51,20 @@ public class RelationQueryCache implements AutoCloseable {
     }
 
     public void expireQueryForType(InternalRelationType type) {
-
+        // invoke from management system
     }
 
     public SliceQuery getQuery(RelationCategory type) {
         return relationTypes.get(type);
     }
 
-    public SliceQuery getQuery(final InternalRelationType type, Direction dir) {
-        CacheEntry ce = cache.get(type.longId(), key -> new CacheEntry(edgeSerializer,type));
+    public SliceQuery getQuery(final InternalRelationType type, Direction dir, int limit) {
+        CacheEntry ce;
+        try {
+            ce = cache.get(new CacheKey(type.longId(), limit), () -> new CacheEntry(edgeSerializer,type));
+        } catch (ExecutionException e) {
+            throw new AssertionError("Should not happen: " + e.getMessage());
+        }
         assert ce!=null;
         Preconditions.checkArgument(type.isUnidirected(Direction.BOTH) || type.isUnidirected(dir), "Type is %s dir %s", type, dir);
         return ce.get(dir);
@@ -66,6 +73,33 @@ public class RelationQueryCache implements AutoCloseable {
     public void close() {
         cache.invalidateAll();
         cache.cleanUp();
+    }
+
+    private static final class CacheKey {
+        private final long keyId;
+        private final int limit;
+
+        private CacheKey(final long keyId, final int limit) {
+            this.keyId = keyId;
+            this.limit = limit;
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            CacheKey cacheKey = (CacheKey) o;
+            return keyId == cacheKey.keyId && limit == cacheKey.limit;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(keyId, limit);
+        }
     }
 
     private static final class CacheEntry {

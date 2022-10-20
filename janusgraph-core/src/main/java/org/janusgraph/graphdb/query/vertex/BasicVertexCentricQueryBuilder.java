@@ -14,8 +14,6 @@
 
 package org.janusgraph.graphdb.query.vertex;
 
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.TX_QUERY_CACHE;
-
 import com.codahale.metrics.Timer;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
@@ -77,6 +75,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
+
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.TX_QUERY_CACHE;
 
 /**
  * Builds a {@link BaseVertexQuery}, optimizes the query and compiles the result into
@@ -583,7 +583,7 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
                     //there ARE intervalConstraints or orders but those cannot be covered by any sort-keys
                     SliceQuery q;
                     if (tx.getConfiguration().getCustomOption(TX_QUERY_CACHE)) {
-                        q = tx.getGraph().getQueryCache().getQuery(type, typeDir).updateLimit(sliceLimit);
+                        q = tx.getGraph().getQueryCache().getQuery(type, typeDir, sliceLimit);
                     } else {
                         q = serializer.getQuery(type, typeDir, null).setLimit(sliceLimit);
                     }
@@ -703,12 +703,13 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
         }
         EdgeSerializer serializer = tx.getEdgeSerializer();
         SliceQuery q;
+        final int newLimit = computeLimit(intervalConstraints.size() - position, sliceLimit);
         if ((sortKeyConstraints == null || sortKeyConstraints.length == 0) && tx.getConfiguration().getCustomOption(TX_QUERY_CACHE)) {
-            q = tx.getGraph().getQueryCache().getQuery(bestCandidate, direction);
+            q = tx.getGraph().getQueryCache().getQuery(bestCandidate, direction, newLimit);
         } else {
             q = serializer.getQuery(bestCandidate, direction, sortKeyConstraints);
+            q.setLimit(newLimit);
         }
-        q.setLimit(computeLimit(intervalConstraints.size()-position, sliceLimit));
         queries.add(new BackendQueryHolder<>(q, isFitted, bestCandidateSupportsOrder));
     }
 

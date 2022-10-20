@@ -78,6 +78,7 @@ import org.janusgraph.graphdb.internal.InternalRelation;
 import org.janusgraph.graphdb.internal.InternalRelationType;
 import org.janusgraph.graphdb.internal.InternalVertex;
 import org.janusgraph.graphdb.internal.InternalVertexLabel;
+import org.janusgraph.graphdb.query.Query;
 import org.janusgraph.graphdb.query.QueryUtil;
 import org.janusgraph.graphdb.query.index.IndexSelectionStrategy;
 import org.janusgraph.graphdb.relations.EdgeDirection;
@@ -503,7 +504,7 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
 
         @Override
         public EntryList retrieveSchemaRelations(final long schemaId, final BaseRelationType type, final Direction dir) {
-            SliceQuery query = queryCache.getQuery(type,dir);
+            SliceQuery query = queryCache.getQuery(type, dir, Query.NO_LIMIT);
             Configuration customTxOptions = backend.getStoreFeatures().getKeyConsistentTxConfig();
             StandardJanusGraphTx consistentTx = null;
             try {
