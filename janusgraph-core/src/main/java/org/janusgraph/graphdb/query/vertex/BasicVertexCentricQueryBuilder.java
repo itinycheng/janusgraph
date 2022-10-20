@@ -468,7 +468,7 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
 
     protected BaseVertexCentricQuery queryForLabel() {
         EdgeSerializer serializer = tx.getEdgeSerializer();
-        SliceQuery q = serializer.getQuery(BaseLabel.VertexLabelEdge, Direction.OUT, new EdgeSerializer.TypedInterval[0]);
+        SliceQuery q = serializer.labelQuery;
         List<BackendQueryHolder<SliceQuery>> queries = Collections.singletonList(new BackendQueryHolder<>(q, true, true));
         RelationTypeCondition<JanusGraphRelation> condition = new RelationTypeCondition<>(BaseLabel.VertexLabelEdge);
         return new BaseVertexCentricQuery(condition, Direction.OUT, queries, OrderList.NO_ORDER, Query.NO_LIMIT);

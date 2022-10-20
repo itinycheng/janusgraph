@@ -44,6 +44,7 @@ import org.janusgraph.graphdb.internal.RelationCategory;
 import org.janusgraph.graphdb.relations.EdgeDirection;
 import org.janusgraph.graphdb.relations.RelationCache;
 import org.janusgraph.graphdb.types.TypeInspector;
+import org.janusgraph.graphdb.types.system.BaseLabel;
 import org.janusgraph.graphdb.types.system.ImplicitKey;
 import org.janusgraph.util.datastructures.Interval;
 import org.slf4j.Logger;
@@ -67,11 +68,13 @@ public class EdgeSerializer implements RelationReader {
 
     private static final int DEFAULT_COLUMN_CAPACITY = 60;
     private static final int DEFAULT_CAPACITY = 128;
+    public final SliceQuery labelQuery;
 
     private final Serializer serializer;
 
     public EdgeSerializer(Serializer serializer) {
         this.serializer = serializer;
+        this.labelQuery = getQuery(BaseLabel.VertexLabelEdge, Direction.OUT, new EdgeSerializer.TypedInterval[0]);
     }
 
     public RelationCache readRelation(Entry data, boolean parseHeaderOnly, TypeInspector tx) {
