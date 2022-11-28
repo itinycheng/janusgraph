@@ -28,7 +28,7 @@ import java.util.List;
 
 public class CaffeineVertexCache implements VertexCache {
     private static final Logger log = LoggerFactory.getLogger(CaffeineVertexCache.class);
-    private final Cache<Long, InternalVertex> cache;
+    private final Cache<Object, InternalVertex> cache;
 
     public CaffeineVertexCache(final long maxCacheSize) {
         cache = Caffeine.newBuilder().maximumWeight(maxCacheSize).weigher((k, v) -> {
@@ -42,19 +42,18 @@ public class CaffeineVertexCache implements VertexCache {
     }
 
     @Override
-    public boolean contains(long vertexId) {
+    public boolean contains(Object vertexId) {
         return cache.asMap().containsKey(vertexId);
     }
 
     @Override
-    public InternalVertex get(final long vertexId, final Retriever<Long, InternalVertex> retriever) {
+    public InternalVertex get(final Object vertexId, final Retriever<Object, InternalVertex> retriever) {
         return cache.get(vertexId, retriever::get);
     }
 
     @Override
-    public void add(InternalVertex vertex, long vertexId) {
+    public void add(InternalVertex vertex, Object vertexId) {
         Preconditions.checkNotNull(vertex);
-        Preconditions.checkArgument(vertexId != 0);
         cache.put(vertexId, vertex);
     }
 

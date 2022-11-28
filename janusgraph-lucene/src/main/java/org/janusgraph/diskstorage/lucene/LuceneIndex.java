@@ -60,6 +60,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.spatial.SpatialStrategy;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -1161,8 +1162,8 @@ public class LuceneIndex implements IndexProvider {
 
     private long executeCount(IndexSearcher searcher, Query query) throws IOException {
         final long time = System.currentTimeMillis();
-        final long total = searcher.count(q);
-        log.debug("Executed query [{}] in {} ms", q, System.currentTimeMillis() - time);
+        final long total = searcher.count(query);
+        log.debug("Executed query [{}] in {} ms", query, System.currentTimeMillis() - time);
         return total;
     }
 

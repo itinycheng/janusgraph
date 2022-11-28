@@ -27,7 +27,7 @@ Configuration options that modify JanusGraph's caching behavior
 | cache.tx-dirty-size | Initial size of the transaction-level cache of uncommitted dirty vertices. This is a performance hint for write-heavy, performance-sensitive transactional workloads. If set, it should roughly match the median vertices modified per transaction. | Integer | (no default value) | MASKABLE |
 | cache.tx-disable-cache | Disable TX cache | Boolean | false | MASKABLE |
 | cache.tx-query-cache | Use cache for query | Boolean | false | MASKABLE |
-| cache.tx-vertex-cache-type | Vertex cache type. For local storage NOCACHE will be default. Available values DEFAULT, TREEMAP, NOCACHE | String | DEFAULT | MASKABLE |
+| cache.tx-vertex-cache-type | Vertex cache type. Available values DEFAULT, TREEMAP, NOCACHE | String | DEFAULT | MASKABLE |
 
 ### cluster
 Configuration options for multi-machine deployments
@@ -570,7 +570,6 @@ HBase storage options
 | ---- | ---- | ---- | ---- | ---- |
 | storage.hbase.async-prefetch | Whether JanusGraph will scan with async prefetch. | Boolean | false | MASKABLE |
 | storage.hbase.cache-blocks | Whether JanusGraph will cache blocks during read requests. | Boolean | true | MASKABLE |
-| storage.hbase.compat-class | The package and class name of the HBaseCompat implementation. HBaseCompat masks version-specific HBase API differences. When this option is unset, JanusGraph calls HBase's VersionInfo.getVersion() and loads the matching compat class at runtime.  Setting this option forces JanusGraph to instead reflectively load and instantiate the specified class. | String | (no default value) | MASKABLE |
 | storage.hbase.compression-algorithm | An HBase Compression.Algorithm enum string which will be applied to newly created column families. The compression algorithm must be installed and available on the HBase cluster.  JanusGraph cannot install and configure new compression algorithms on the HBase cluster by itself. | String | GZ | MASKABLE |
 | storage.hbase.data-block-encoding | Whether JanusGraph will scan with async prefetch. | String | NONE | MASKABLE |
 | storage.hbase.durability | Type of durability during mutations. | String | USE_DEFAULT | MASKABLE |
@@ -613,7 +612,7 @@ Configuration options for executor service which is used for parallel requests w
 | Name | Description | Datatype | Default Value | Mutability |
 | ---- | ---- | ---- | ---- | ---- |
 | storage.parallel-backend-executor-service.class | The implementation of `ExecutorService` to use. The full name of the class which extends `ExecutorService` which has either a public constructor with `ExecutorServiceConfiguration` argument (preferred constructor) or a public parameterless constructor. Other accepted options are: `fixed` - fixed thread pool of size `core-pool-size`; `cached` - cached thread pool; | String | fixed | LOCAL |
-| storage.parallel-backend-executor-service.core-pool-size | Core pool size for executor service. May be ignored if custom executor service is used (depending on the implementation of the executor service).If not set the core pool size will be equal to number of processors multiplied by 2. | Integer | (no default value) | LOCAL |
+| storage.parallel-backend-executor-service.core-pool-size | Core pool size for executor service. May be ignored if custom executor service is used (depending on the implementation of the executor service).If not set the core pool size will be equal to number of processors multiplied by 1. | Integer | (no default value) | LOCAL |
 | storage.parallel-backend-executor-service.keep-alive-time | Keep alive time in milliseconds for executor service. When the number of threads is greater than the `core-pool-size`, this is the maximum time that excess idle threads will wait for new tasks before terminating. Ignored for `fixed` executor service and may be ignored if custom executor service is used (depending on the implementation of the executor service). | Long | 60000 | LOCAL |
 | storage.parallel-backend-executor-service.max-pool-size | Maximum pool size for executor service. Ignored for `fixed` and `cached` executor services. May be ignored if custom executor service is used (depending on the implementation of the executor service). | Integer | 2147483647 | LOCAL |
 | storage.parallel-backend-executor-service.max-shutdown-wait-time | Max shutdown wait time in milliseconds for executor service threads to be finished during shutdown. After this time threads will be interrupted (signalled with interrupt) without any additional wait time. | Long | 60000 | LOCAL |

@@ -236,7 +236,7 @@ public class IndexSerializer {
             assert rel.isProperty();
             final JanusGraphVertexProperty p = (JanusGraphVertexProperty)rel;
             assert rel.isNew() || rel.isRemoved(); assert rel.getVertex(0).equals(vertex);
-            final IndexUpdate.Type updateType = getUpdateType(rel);
+            final IndexMutationType updateType = getUpdateType(rel);
             for (final IndexType index : vertex.tx().getApplicableIndices(vertex, p.propertyKey())) {
                 if (index.isCompositeIndex()) { //Gather composite indexes
                     final CompositeIndexType cIndex = (CompositeIndexType)index;

@@ -19,7 +19,6 @@ import org.janusgraph.diskstorage.configuration.backend.CommonsConfiguration;
 import org.janusgraph.graphdb.configuration.builder.GraphDatabaseConfigurationBuilder;
 import org.janusgraph.graphdb.database.StandardJanusGraph;
 import org.janusgraph.util.system.ConfigurationUtil;
-import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -32,7 +31,6 @@ import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.ST
  */
 public class EnsureCacheTest {
 
-    @Test
     public void NopTest() {
         final Map<String, Object> map = new HashMap<>();
         map.put(STORAGE_BACKEND.toStringWithoutRoot(), "inmemory");

@@ -14,11 +14,8 @@
 
 package org.janusgraph.hadoop.scan;
 
-import static org.janusgraph.graphdb.olap.job.IndexRepairJob.DOCUMENT_UPDATES_COUNT;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BUFFER_SIZE;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.TX_RATE;
-
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.RateLimiter;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.janusgraph.diskstorage.Entry;
@@ -29,11 +26,10 @@ import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.janusgraph.diskstorage.keycolumnvalue.SliceQuery;
 import org.janusgraph.diskstorage.keycolumnvalue.scan.ScanJob;
+import org.janusgraph.diskstorage.keycolumnvalue.scan.ScanMetrics;
 import org.janusgraph.diskstorage.util.BufferUtil;
 import org.janusgraph.diskstorage.util.EntryArrayList;
 import org.janusgraph.hadoop.config.JanusGraphHadoopConfiguration;
-
-import com.google.common.util.concurrent.RateLimiter;
 import org.janusgraph.hadoop.config.ModifiableHadoopConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +41,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BUFFER_SIZE;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.TX_RATE;
+import static org.janusgraph.graphdb.olap.job.IndexRepairJob.DOCUMENT_UPDATES_COUNT;
 
 /**
  * Run a {@link org.janusgraph.diskstorage.keycolumnvalue.scan.ScanJob}
@@ -140,13 +140,21 @@ public class HadoopScanMapper extends Mapper<StaticBuffer, Iterable<Entry>, Null
         }
         // Process
         long documentsUpdatesCount = metrics.getCustom(DOCUMENT_UPDATES_COUNT);
-        if (documentsUpdatesCount % batchSize == 0) {
+        if (documentsUpdatesCount % batchSize == 0 || metrics.get(ScanMetrics.Metric.SUCCESS) % batchSize == 0) {
             rateLimiter.acquire();
             job.workerIterationEnd(metrics);
             ModifiableConfiguration janusGraphConfiguration = getJanusGraphConfiguration(context);
             job.workerIterationStart(jobConf, janusGraphConfiguration, metrics);
         }
-        job.process(key, matches, metrics);
+
+        try {
+            job.process(key, matches, metrics);
+            metrics.increment(ScanMetrics.Metric.SUCCESS);
+        } catch (Throwable ex) {
+            log.error("Exception processing row ["+key+"]: ",ex);
+            metrics.increment(ScanMetrics.Metric.FAILURE);
+            context.getProgress();
+        }
     }
 
     @Override

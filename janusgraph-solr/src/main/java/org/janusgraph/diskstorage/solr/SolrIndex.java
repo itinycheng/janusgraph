@@ -25,9 +25,6 @@ import org.apache.http.entity.BufferedHttpEntity;
 import org.apache.http.impl.auth.KerberosScheme;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CachingTokenFilter;
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
-import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.solr.client.solrj.SolrClient;
@@ -874,10 +871,10 @@ public class SolrIndex implements IndexProvider {
 
             switch (aggregation.getType()) {
                 case COUNT: return executeCount(query, collection.get(), solrQuery);
-                case MIN: return executeMin(query, collection, solrQuery, information, aggregation.getFieldName(), aggregation.getDataType());
-                case MAX: return executeMax(query, collection, solrQuery, information, aggregation.getFieldName(), aggregation.getDataType());
-                case AVG: return executeAvg(query, collection, solrQuery, information, aggregation.getFieldName());
-                case SUM: return executeSum(query, collection, solrQuery, information, aggregation.getFieldName(), aggregation.getDataType());
+                case MIN: return executeMin(query, collection.get(), solrQuery, information, aggregation.getFieldName(), aggregation.getDataType());
+                case MAX: return executeMax(query, collection.get(), solrQuery, information, aggregation.getFieldName(), aggregation.getDataType());
+                case AVG: return executeAvg(query, collection.get(), solrQuery, information, aggregation.getFieldName());
+                case SUM: return executeSum(query, collection.get(), solrQuery, information, aggregation.getFieldName(), aggregation.getDataType());
                 default: throw new IOException();
             }
         } catch (final IOException e) {

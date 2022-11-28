@@ -215,7 +215,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
      */
     private VertexCache vertexCache;
 
-    private Map<Long, InternalVertex> schemaVertexCache;
+    private Map<Object, InternalVertex> schemaVertexCache;
 
     //######## Data structures that keep track of new and deleted elements
     //These data structures cannot release elements, since we would loose track of what was added or deleted
@@ -345,17 +345,17 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         if (config.getCustomOption(TX_DISABLE_CACHE) || (config.hasPreloadedData() && config.getVertexCacheSize() == 0 && config.getDirtyVertexSize() == 0)) {
             vertexCache = new VertexCache() {
                 @Override
-                public boolean contains(final long id) {
+                public boolean contains(final Object id) {
                     return false;
                 }
 
                 @Override
-                public InternalVertex get(final long id, final Retriever<Long, InternalVertex> retriever) {
+                public InternalVertex get(final Object id, final Retriever<Object, InternalVertex> retriever) {
                     return retriever.get(id);
                 }
 
                 @Override
-                public void add(final InternalVertex vertex, final long id) {
+                public void add(final InternalVertex vertex, final Object id) {
                 }
 
                 @Override
@@ -369,16 +369,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
                 }
             };
         } else {
-            switch (config.getVertexCacheType()) {
-                case GUAVA:
-                    vertexCache = new CaffeineVertexCache(effectiveVertexCacheSize,  config.getDirtyVertexSize());
-                    break;
-                case CAFFEINE:
-                    vertexCache = new CaffeineVertexCache(effectiveVertexCacheSize);
-                    break;
-                default:
-                    throw new IllegalArgumentException(config.getVertexCacheType().name());
-            }
+            vertexCache = new CaffeineVertexCache(effectiveVertexCacheSize);
         }
         schemaVertexCache = new ConcurrentHashMap<>();
 
@@ -937,7 +928,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
         return vertexProperty2ApplicableIndices.computeIfAbsent(pair, k -> {
             List<IndexType> indices = new ArrayList<>();
             for (final IndexType index : currentIndices) {
-                if (IndexSerializer.indexAppliesTo(index, element)) {
+                if (IndexRecordUtil.indexAppliesTo(index, element)) {
                     indices.add(index);
                 }
             }

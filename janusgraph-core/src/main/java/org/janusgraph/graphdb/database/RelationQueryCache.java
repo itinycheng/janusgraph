@@ -14,9 +14,9 @@
 
 package org.janusgraph.graphdb.database;
 
-import com.google.common.base.Preconditions;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.google.common.base.Preconditions;
 import org.apache.tinkerpop.gremlin.structure.Direction;
 import org.janusgraph.diskstorage.keycolumnvalue.SliceQuery;
 import org.janusgraph.graphdb.internal.InternalRelationType;
@@ -24,7 +24,6 @@ import org.janusgraph.graphdb.internal.RelationCategory;
 
 import java.util.EnumMap;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
@@ -42,8 +41,8 @@ public class RelationQueryCache implements AutoCloseable {
 
     public RelationQueryCache(EdgeSerializer edgeSerializer, int capacity) {
         this.edgeSerializer = edgeSerializer;
-        this.cache = Caffeine.newBuilder().maximumSize(capacity*3/2).initialCapacity(capacity)
-                .build();
+        this.cache = Caffeine.newBuilder().maximumSize(capacity * 3L / 2).initialCapacity(capacity)
+                             .build();
         relationTypes = new EnumMap<>(RelationCategory.class);
         for (RelationCategory rt : RelationCategory.values()) {
             relationTypes.put(rt,edgeSerializer.getQuery(rt,false));
@@ -59,12 +58,7 @@ public class RelationQueryCache implements AutoCloseable {
     }
 
     public SliceQuery getQuery(final InternalRelationType type, Direction dir, int limit) {
-        CacheEntry ce;
-        try {
-            ce = cache.get(new CacheKey(type.longId(), limit), () -> new CacheEntry(edgeSerializer,type));
-        } catch (ExecutionException e) {
-            throw new AssertionError("Should not happen: " + e.getMessage());
-        }
+        CacheEntry ce = cache.get(new CacheKey(type.longId(), limit), (key) -> new CacheEntry(edgeSerializer, type));
         assert ce!=null;
         Preconditions.checkArgument(type.isUnidirected(Direction.BOTH) || type.isUnidirected(dir), "Type is %s dir %s", type, dir);
         return ce.get(dir);

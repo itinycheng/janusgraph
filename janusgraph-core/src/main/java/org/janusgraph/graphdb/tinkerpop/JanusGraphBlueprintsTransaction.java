@@ -34,6 +34,7 @@ import org.janusgraph.graphdb.database.StandardJanusGraph;
 import org.janusgraph.graphdb.olap.computer.FulgoraGraphComputer;
 import org.janusgraph.graphdb.relations.RelationIdentifier;
 import org.janusgraph.graphdb.types.system.BaseVertexLabel;
+import org.janusgraph.util.IDUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -135,6 +136,7 @@ public abstract class JanusGraphBlueprintsTransaction implements JanusGraphTrans
         int pos = 0;
         for (Object vertexId : vertexIds) {
             Object id = ElementUtils.getVertexId(vertexId);
+            IDUtils.checkId(id);
             if (!(id instanceof Number) || ((Number) id).longValue() > 0) ids[pos++] = id;
         }
         if (pos==0) return Collections.emptyIterator();

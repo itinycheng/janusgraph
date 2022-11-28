@@ -116,9 +116,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -984,7 +981,7 @@ public class ManagementSystem implements JanusGraphManagement {
                     builder = graph.getBackend().buildGraphIndexScanJob();
                 } else if (index instanceof JanusGraphIndex && ((JanusGraphIndex) index).isMixedIndex()){
                     new RemoveIndexTrigger(graph, schemaVertex).removeIndex(this);
-                    future = new EmptyIndexJobFuture();
+                    future = new EmptyScanJobFuture();
                     break;
                 }
                 if (index instanceof RelationTypeIndex) {
@@ -1302,7 +1299,7 @@ public class ManagementSystem implements JanusGraphManagement {
         public Consumer<ScanMetrics> getIndexJobFinisher(final JanusGraph graph, final SchemaAction action) {
             if (action == null) {
                 return createIndexJobFinisher(null, null);
-            } else if (action == SchemaAction.REMOVE_INDEX) {
+            } else if (action == SchemaAction.DROP_INDEX) {
                 return createIndexJobFinisher(graph, (m, i) -> {
                     JanusGraphSchemaVertex schemaVertex = m.getSchemaVertex(i);
                     schemaVertex.remove();

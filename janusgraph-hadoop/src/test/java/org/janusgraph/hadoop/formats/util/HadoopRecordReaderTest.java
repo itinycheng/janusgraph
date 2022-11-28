@@ -147,7 +147,7 @@ public class HadoopRecordReaderTest extends JanusGraphBaseTest {
 
     private KeyIterator getAllDataFromKCVStore() throws BackendException {
         KCVSCache kcvsCache = graph.getBackend().getEdgeStoreCache();
-        StoreTransaction tx = graph.getBackend().getStoreManager().beginTransaction(StandardBaseTransactionConfig.of(TimestampProviders.NANO));
+        StoreTransaction tx = graph.getBackend().getStoreManager().beginTransaction(StandardBaseTransactionConfig.of("jg", TimestampProviders.NANO));
         ExpectedValueCheckingTransaction expectedValueCheckingTransaction = new ExpectedValueCheckingTransaction(tx, tx, Duration.ofMillis(1000000));
         CacheTransaction cacheTransaction = new CacheTransaction(expectedValueCheckingTransaction,
             (KeyColumnValueStoreManager) graph.getBackend().getStoreManager(), 64, Duration.ofMillis(100), false);

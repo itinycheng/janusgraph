@@ -14,12 +14,11 @@
 
 package org.janusgraph.diskstorage.hbase;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.Entry;
@@ -32,14 +31,18 @@ import org.janusgraph.diskstorage.keycolumnvalue.StoreTransaction;
 import org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration;
 import org.janusgraph.util.system.IOUtils;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Corresponding to the id famliy, there is only one cell with each partition
  * row, the column name is HBaseIDStore#ID_COL
  */
 public class HBaseIDStore extends HBaseKeyColumnValueStore {
 
-    HBaseIDStore(HBaseStoreManager storeManager, ConnectionMask cnx, String tableName, String columnFamily,
-            String storeName) {
+    HBaseIDStore(HBaseStoreManager storeManager, Connection cnx, TableName tableName, String columnFamily,
+                 String storeName) {
         super(storeManager, cnx, tableName, columnFamily, storeName);
     }
 
@@ -65,7 +68,7 @@ public class HBaseIDStore extends HBaseKeyColumnValueStore {
     @Override
     public boolean casUpdate(StaticBuffer key, Entry entry, StaticBuffer newValue, StoreTransaction txh)
             throws BackendException {
-        TableMask table = null;
+        Table table = null;
         boolean res = false;
         try {
             table = cnx.getTable(tableName);

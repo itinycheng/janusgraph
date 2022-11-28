@@ -875,7 +875,7 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
             boolean hasSchemaElements = deletedRelations.stream().anyMatch(SCHEMA_FILTER)
                 || addedRelations.stream().anyMatch(SCHEMA_FILTER);
             Preconditions.checkArgument(!hasSchemaElements || (!tx.getConfiguration().hasEnabledBatchLoading() && acquireLocks),
-                    "Attempting to create schema elements in inconsistent state added %s, deleted %s", addedSchemaElements, deletedSchemaElements);
+                    "Attempting to create schema elements in inconsistent state");
 
             if (hasSchemaElements && !hasTxIsolation) {
                 /*
