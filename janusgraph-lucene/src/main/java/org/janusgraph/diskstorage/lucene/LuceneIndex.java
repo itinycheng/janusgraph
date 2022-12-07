@@ -1326,10 +1326,17 @@ public class LuceneIndex implements IndexProvider {
 
     @Override
     public void clearStorage() throws BackendException {
+        writerLock.lock();
         try {
+            for (final IndexWriter writer : writers.values()) {
+                writer.close();
+            }
+            writers.clear();
             FileUtils.deleteDirectory(new File(basePath));
         } catch (final IOException e) {
-            throw new PermanentBackendException("Could not delete lucene directory: " + basePath, e);
+            throw new PermanentBackendException("Could not clear index: " + basePath, e);
+        } finally {
+            writerLock.unlock();
         }
     }
 
