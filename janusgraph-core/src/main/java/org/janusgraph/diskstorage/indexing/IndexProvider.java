@@ -20,6 +20,7 @@ import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.BaseTransaction;
 import org.janusgraph.diskstorage.BaseTransactionConfig;
 import org.janusgraph.diskstorage.BaseTransactionConfigurable;
+import org.janusgraph.diskstorage.PermanentBackendException;
 import org.janusgraph.graphdb.tinkerpop.optimize.step.Aggregation;
 
 import java.util.List;
@@ -163,4 +164,7 @@ public interface IndexProvider extends IndexInformation {
      */
     boolean exists() throws BackendException;
 
+    default void rename(String store, String newName) throws BackendException {
+        throw new PermanentBackendException("Rename not implemented for this provider " + this.getClass().getSimpleName());
+    }
 }

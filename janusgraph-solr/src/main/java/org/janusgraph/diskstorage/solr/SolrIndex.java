@@ -539,6 +539,17 @@ public class SolrIndex implements IndexProvider {
     }
 
     @Override
+    public void rename(final String store, final String newName) throws BackendException {
+        try {
+            solrClient.request(CollectionAdminRequest.Rename.renameCollection(
+                buildCollectionName(store),
+                buildCollectionName(newName)));
+        } catch (SolrServerException | IOException e) {
+            throw new TemporaryBackendException(e);
+        }
+    }
+
+    @Override
     public void mutate(Map<String, Map<String, IndexMutation>> mutations, KeyInformation.IndexRetriever information,
                        BaseTransaction tx) throws BackendException {
         logger.debug("Mutating SOLR");

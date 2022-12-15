@@ -105,16 +105,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -1357,6 +1348,33 @@ public class ManagementSystem implements JanusGraphManagement {
             SystemTypeManager.throwIfSystemName(JanusGraphSchemaCategory.VERTEXLABEL, newName);
         } else if (element instanceof JanusGraphIndex) {
             checkIndexName(newName);
+            if (((JanusGraphIndex) element).isMixedIndex()) {
+                // Index name should be equals with INDEXSTORE_NAME
+                for (JanusGraphVertexProperty p : schemaVertex.query().types(BaseKey.SchemaDefinitionProperty).properties()) {
+                    if (p.<TypeDefinitionDescription>valueOrNull(BaseKey.SchemaDefinitionDesc).getCategory()
+                        == TypeDefinitionCategory.INDEXSTORE_NAME) {
+                        p.remove();
+                        break;
+                    }
+                }
+                JanusGraphVertexProperty p = transaction.addProperty(schemaVertex, BaseKey.SchemaDefinitionProperty, newName);
+                p.property(BaseKey.SchemaDefinitionDesc.name(), TypeDefinitionDescription.of(TypeDefinitionCategory.INDEXSTORE_NAME));
+                final String newIndexStoreName = newName;
+                final String backingIndex = ((JanusGraphIndex) element).getBackingIndex();
+                Preconditions.checkArgument(graph.getIndexSerializer().containsIndex(backingIndex), "Unknown external index backend: %s",
+                    backingIndex);
+                setUpdateTrigger(() -> {
+                    IndexInformation indexInformation = graph.getBackend()
+                                                             .getIndexInformation()
+                                                             .get(backingIndex);
+                    try {
+                        ((IndexProvider) indexInformation).rename(oldName, newIndexStoreName);
+                    } catch (BackendException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return true;
+                });
+            }
         }
 
         transaction.addProperty(schemaVertex, BaseKey.SchemaName, schemaCategory.getSchemaName(newName));

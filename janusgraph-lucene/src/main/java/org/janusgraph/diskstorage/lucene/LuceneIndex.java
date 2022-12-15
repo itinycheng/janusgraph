@@ -342,6 +342,29 @@ public class LuceneIndex implements IndexProvider {
     }
 
     @Override
+    public void rename(final String store, final String newName) throws BackendException {
+        writerLock.lock();
+        try {
+            IndexWriter writer = writers.remove(store);
+            if (writer != null) {
+                writer.close();
+            }
+            File dir = new File(basePath + File.separator + store);
+            File newDir = new File(basePath + File.separator + newName);
+            if (dir.exists()) {
+                if (!dir.renameTo(newDir)) {
+                    throw new TemporaryBackendException("Could not rename Lucene index directory" + dir.getAbsolutePath()
+                                                        + " to " + newDir.getAbsolutePath());
+                }
+            }
+        } catch (IOException e) {
+            throw new TemporaryBackendException("Could not rename Lucene index", e);
+        } finally {
+            writerLock.unlock();
+        }
+    }
+
+    @Override
     public void mutate(Map<String, Map<String, IndexMutation>> mutations, KeyInformation.IndexRetriever information,
                        BaseTransaction tx) throws BackendException {
         final Transaction ltx = (Transaction) tx;
