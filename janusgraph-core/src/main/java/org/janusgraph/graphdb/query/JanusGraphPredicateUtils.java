@@ -18,7 +18,6 @@ import org.apache.tinkerpop.gremlin.process.traversal.Compare;
 import org.apache.tinkerpop.gremlin.process.traversal.Contains;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
 import org.apache.tinkerpop.gremlin.process.traversal.Text;
-import org.apache.tinkerpop.gremlin.process.traversal.TextP;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer;
 import org.apache.tinkerpop.gremlin.process.traversal.util.AndP;
 import org.apache.tinkerpop.gremlin.process.traversal.util.ConnectiveP;
@@ -74,7 +73,7 @@ public class JanusGraphPredicateUtils {
                 case notStartingWith:
                     return org.janusgraph.core.attribute.Text.NOT_PREFIX;
                 case containing:
-                    return org.janusgraph.core.attribute.Text.CONTAINS_REGEX;
+                    return org.janusgraph.core.attribute.Text.CONTAINS;
                 case notContaining:
                     return org.janusgraph.core.attribute.Text.NOT_CONTAINS;
                 case endingWith:
