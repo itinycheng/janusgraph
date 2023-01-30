@@ -1267,11 +1267,20 @@ public class SolrIndex implements IndexProvider {
 
     @Override
     public void clearStorage() throws BackendException {
-        if (mode!=Mode.CLOUD) {
-            logger.error("Operation only supported for SolrCloud. Cores must be deleted manually through the Solr API when using HTTP mode.");
-            throw new UnsupportedOperationException("Operation only supported for SolrCloud");
-        }
+        clearIndex(indexName);
+    }
+
+    @Override
+    public void clearStore(String storageName) throws BackendException {
+        clearIndex(buildCollectionName(storageName));
+    }
+
+    private void clearIndex(String indexName) throws BackendException {
         try {
+            if (mode!=Mode.CLOUD) {
+                logger.error("Operation only supported for SolrCloud. Cores must be deleted manually through the Solr API when using HTTP mode.");
+                throw new UnsupportedOperationException("Operation only supported for SolrCloud");
+            }
             logger.debug("Clearing storage from Solr: {}", solrClient);
             final ZkStateReader zkStateReader = ((BaseCloudSolrClient) solrClient).getZkStateReader();
             zkStateReader.forciblyRefreshAllClusterStateSlow();
@@ -1295,11 +1304,7 @@ public class SolrIndex implements IndexProvider {
             logger.error("Unable to clear storage from index due to general error.", e);
             throw new PermanentBackendException(e);
         }
-    }
 
-    @Override
-    public void clearStore(String storeName) throws BackendException {
-        throw new PermanentBackendException("Solr index does not yet support deleting single stores.");
     }
 
     @Override
@@ -1573,5 +1578,4 @@ public class SolrIndex implements IndexProvider {
             logger.info("Exiting solr wait");
         }
     }
-
 }

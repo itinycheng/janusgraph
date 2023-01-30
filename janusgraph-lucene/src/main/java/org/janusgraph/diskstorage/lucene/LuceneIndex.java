@@ -1364,8 +1364,22 @@ public class LuceneIndex implements IndexProvider {
     }
 
     @Override
-    public void clearStore(String storeName) throws BackendException {
-        throw new PermanentBackendException("Lucene index does not yet support deleting single stores.");
+    public void clearStore(String storageName) throws BackendException {
+        writerLock.lock();
+        try {
+            if (writers.containsKey(storageName)) {
+                writers.get(storageName).close();
+                writers.remove(storageName);
+                File indexDir = new File(basePath, storageName);
+                FileUtils.deleteDirectory(indexDir);
+            } else {
+                log.error("Storage '" + storageName + "' does not exist.");
+            }
+        } catch (IOException e) {
+            throw new PermanentBackendException("Could not clear index: " + basePath + ", storage name: " + storageName, e);
+        } finally {
+            writerLock.unlock();
+        }
     }
 
     @Override
