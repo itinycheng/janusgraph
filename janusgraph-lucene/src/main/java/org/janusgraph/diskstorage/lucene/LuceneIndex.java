@@ -889,22 +889,34 @@ public class LuceneIndex implements IndexProvider {
                 Preconditions.checkArgument(janusgraphPredicate instanceof Cmp, "Relation not supported on numeric types: %s", janusgraphPredicate);
                 params.addQuery(numericQuery(key, (Cmp) janusgraphPredicate, (Number) value));
             } else if (value instanceof String) {
+                final String stringFieldKey;
+                final String normalizedValue;
+                if (Mapping.getMapping(ki) == Mapping.TEXTSTRING) {
+                    stringFieldKey = getDualFieldName(key, ki).orElse(key);
+                } else {
+                    stringFieldKey = key;
+                }
+                if (Mapping.getMapping(ki) == Mapping.TEXTSTRING || Mapping.getMapping(ki) == Mapping.STRING) {
+                    final List<List<String>> lists =
+                        customTokenize(delegatingAnalyzer.getWrappedAnalyzer(stringFieldKey), stringFieldKey, (String) value);
+                    if (lists.size() == 1 && lists.get(0).size() == 1) {
+                        normalizedValue = lists.get(0).get(0);
+                    } else {
+                        normalizedValue = (String) value;
+                    }
+                } else {
+                    normalizedValue = (String) value;
+                }
                 if (janusgraphPredicate == Cmp.LESS_THAN) {
-                    params.addQuery(TermRangeQuery.newStringRange(key, null, value.toString(), false, false));
+                    params.addQuery(TermRangeQuery.newStringRange(key, null, normalizedValue, false, false));
                 } else if (janusgraphPredicate == Cmp.LESS_THAN_EQUAL) {
-                    params.addQuery(TermRangeQuery.newStringRange(key, null, value.toString(), false, true));
+                    params.addQuery(TermRangeQuery.newStringRange(key, null, normalizedValue, false, true));
                 } else if (janusgraphPredicate == Cmp.GREATER_THAN) {
-                    params.addQuery(TermRangeQuery.newStringRange(key, value.toString(), null, false, false));
+                    params.addQuery(TermRangeQuery.newStringRange(key, normalizedValue, null, false, false));
                 } else if (janusgraphPredicate == Cmp.GREATER_THAN_EQUAL) {
-                    params.addQuery(TermRangeQuery.newStringRange(key, value.toString(), null, true, false));
+                    params.addQuery(TermRangeQuery.newStringRange(key, normalizedValue, null, true, false));
                 } else {
                     final Mapping map = Mapping.getMapping(ki);
-                    final String stringFieldKey;
-                    if (Mapping.getMapping(ki) == Mapping.TEXTSTRING) {
-                        stringFieldKey = getDualFieldName(key, ki).orElse(key);
-                    } else {
-                        stringFieldKey = key;
-                    }
                     if ((map == Mapping.DEFAULT || map == Mapping.TEXT) && !Text.HAS_CONTAINS.contains(janusgraphPredicate)) {
                         throw new IllegalArgumentException("Text mapped string values only support CONTAINS queries and not: " + janusgraphPredicate);
                     }
@@ -916,7 +928,7 @@ public class LuceneIndex implements IndexProvider {
                     } else if (janusgraphPredicate == Text.CONTAINS_PREFIX) {
                         tokenize(params, map, delegatingAnalyzer, (String) value, key, janusgraphPredicate);
                     } else if (janusgraphPredicate == Text.PREFIX) {
-                        params.addQuery(new PrefixQuery(new Term(stringFieldKey, (String) value)));
+                        params.addQuery(new PrefixQuery(new Term(stringFieldKey, normalizedValue)));
                     } else if (janusgraphPredicate == Text.REGEX) {
                         final RegexpQuery rq = new RegexpQuery(new Term(stringFieldKey, (String) value));
                         params.addQuery(rq);
@@ -928,9 +940,9 @@ public class LuceneIndex implements IndexProvider {
                     } else if (janusgraphPredicate == Cmp.EQUAL || janusgraphPredicate == Cmp.NOT_EQUAL) {
                         tokenize(params, map, delegatingAnalyzer, (String) value, stringFieldKey, janusgraphPredicate);
                     } else if (janusgraphPredicate == Text.FUZZY) {
-                        params.addQuery(new FuzzyQuery(new Term(stringFieldKey, (String) value), Text.getMaxEditDistance((String) value)));
+                        params.addQuery(new FuzzyQuery(new Term(stringFieldKey, normalizedValue), Text.getMaxEditDistance(normalizedValue)));
                     } else if (janusgraphPredicate == Text.CONTAINS_FUZZY) {
-                        value = ((String) value).toLowerCase();
+                        value = normalizedValue.toLowerCase();
                         final Builder b = new BooleanQuery.Builder();
                         for (final String term : Text.tokenize((String) value)) {
                             b.add(new FuzzyQuery(new Term(key, term), Text.getMaxEditDistance(term)), BooleanClause.Occur.MUST);
