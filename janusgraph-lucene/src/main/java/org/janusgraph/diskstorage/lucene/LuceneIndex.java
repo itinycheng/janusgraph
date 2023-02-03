@@ -1382,11 +1382,9 @@ public class LuceneIndex implements IndexProvider {
             if (writers.containsKey(storageName)) {
                 writers.get(storageName).close();
                 writers.remove(storageName);
-                File indexDir = new File(basePath, storageName);
-                FileUtils.deleteDirectory(indexDir);
-            } else {
-                log.error("Storage '" + storageName + "' does not exist.");
             }
+            File indexDir = new File(basePath, storageName);
+            FileUtils.deleteDirectory(indexDir);
         } catch (IOException e) {
             throw new PermanentBackendException("Could not clear index: " + basePath + ", storage name: " + storageName, e);
         } finally {

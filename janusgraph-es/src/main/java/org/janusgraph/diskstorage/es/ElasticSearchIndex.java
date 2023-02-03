@@ -1558,11 +1558,6 @@ public class ElasticSearchIndex implements IndexProvider {
         clearIndex(indexName);
     }
 
-    @Override
-    public void clearStorage(String storageName) throws BackendException {
-        clearIndex(generateIndexStoreName(storageName));
-    }
-
     private void clearIndex(String indexName) throws BackendException {
         try {
             client.deleteIndex(indexName);
