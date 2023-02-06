@@ -14,16 +14,13 @@
 
 package org.janusgraph.graphdb.transaction;
 
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BASIC_METRICS;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.TX_DISABLE_CACHE;
-import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.USE_INDEX_CACHE;
-
 import com.carrotsearch.hppc.LongArrayList;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.tinkerpop.gremlin.structure.Direction;
 import org.apache.tinkerpop.gremlin.structure.Property;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
@@ -42,7 +39,6 @@ import org.janusgraph.core.MixedIndexAggQuery;
 import org.janusgraph.core.Multiplicity;
 import org.janusgraph.core.PropertyKey;
 import org.janusgraph.core.ReadOnlyTransactionException;
-import org.apache.commons.lang3.tuple.Pair;
 import org.janusgraph.core.RelationType;
 import org.janusgraph.core.SchemaViolationException;
 import org.janusgraph.core.VertexLabel;
@@ -172,8 +168,12 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nullable;
+
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.BASIC_METRICS;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.TX_DISABLE_CACHE;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.USE_INDEX_CACHE;
 
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
@@ -1566,7 +1566,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
                         retrievals.isEmpty() ? () -> null : () -> QueryUtil.processIntersectingRetrievals(retrievals, Query.NO_LIMIT));
             } else {
                 if (config.hasForceIndexUsage()) throw new JanusGraphException("Could not find a suitable index to answer graph query and graph scans are disabled: " + query);
-                log.warn("Query requires iterating over all vertices [{}]. For better performance, use indexes", query.getCondition());
+                log.warn("Query requires iterating over all vertices [{}] ({}). For better performance, use indexes", query.getCondition(), graph);
 
                 QueryProfiler sub = profiler.addNested("scan");
                 sub.setAnnotation(QueryProfiler.QUERY_ANNOTATION,indexQuery);
